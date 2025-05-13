@@ -4,11 +4,11 @@
 
 import os
 import logging
-from typing import Tuple, Dict, Any, List, Optional
+from typing import Tuple, Dict, Any, List, Optional, Literal
 
 from .utils.audio import load_audio, extract_audio_segment
 from .utils.diarization import SpeakerDiarizer
-from .utils.transcription import WhisperTranscriber
+from .utils.transcription import AbstractTranscriber, WhisperTranscriber, WhisperCppTranscriber
 from .utils.summarization import TextSummarizer
 
 
@@ -18,6 +18,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# 转录器类型
+TranscriberType = Literal["openai-whisper", "whisper-cpp"]
 
 
 class PodcastTranscriber:
@@ -29,7 +32,8 @@ class PodcastTranscriber:
         hf_token: str,
         diarization_model: str = "pyannote/speaker-diarization-3.1",
         summarization_model: str = "facebook/bart-large-cnn",
-        sample_rate: int = 16000
+        sample_rate: int = 16000,
+        transcriber_type: TranscriberType = "openai-whisper"
     ):
         """
         初始化播客转录器
@@ -40,19 +44,21 @@ class PodcastTranscriber:
             diarization_model: 说话人分割模型名称
             summarization_model: 摘要模型名称
             sample_rate: 音频采样率（Hz）
+            transcriber_type: 转录器类型，可选 "openai-whisper" 或 "whisper-cpp"
         """
         self.whisper_model_path = whisper_model_path
         self.hf_token = hf_token
         self.diarization_model = diarization_model
         self.summarization_model = summarization_model
         self.sample_rate = sample_rate
+        self.transcriber_type = transcriber_type
         
         # 初始化组件
         self._diarizer = None
         self._transcriber = None
         self._summarizer = None
         
-        logger.info("播客转录器初始化完成")
+        logger.info(f"播客转录器初始化完成，使用转录器类型: {transcriber_type}")
     
     @property
     def diarizer(self) -> SpeakerDiarizer:
@@ -66,13 +72,19 @@ class PodcastTranscriber:
         return self._diarizer
     
     @property
-    def transcriber(self) -> WhisperTranscriber:
+    def transcriber(self) -> AbstractTranscriber:
         """懒加载语音转录器"""
         if self._transcriber is None:
-            logger.info(f"初始化语音转录器: {self.whisper_model_path}")
-            self._transcriber = WhisperTranscriber(
-                model_path=self.whisper_model_path
-            )
+            logger.info(f"初始化语音转录器: {self.whisper_model_path}, 类型: {self.transcriber_type}")
+            
+            if self.transcriber_type == "whisper-cpp":
+                self._transcriber = WhisperCppTranscriber(
+                    model_path=self.whisper_model_path
+                )
+            else:  # 默认使用 openai-whisper
+                self._transcriber = WhisperTranscriber(
+                    model_path=self.whisper_model_path
+                )
         return self._transcriber
     
     @property

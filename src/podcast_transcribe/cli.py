@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from datetime import datetime
 
-from .transcriber import PodcastTranscriber
+from .transcriber import PodcastTranscriber, TranscriberType
 
 
 def setup_logging(verbose: bool = False) -> logging.Logger:
@@ -78,7 +78,7 @@ def parse_args() -> argparse.Namespace:
         '--whisper_model_path', '-w',
         type=str,
         required=True,
-        help='Whisper模型的本地路径'
+        help='Whisper模型的本地路径或模型名称'
     )
     
     parser.add_argument(
@@ -107,6 +107,14 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default='facebook/bart-large-cnn',
         help='摘要模型名称'
+    )
+    
+    parser.add_argument(
+        '--transcriber_type',
+        type=str,
+        choices=['openai-whisper', 'whisper-cpp'],
+        default='openai-whisper',
+        help='选择转录器类型：原生OpenAI Whisper或whisper.cpp'
     )
     
     parser.add_argument(
@@ -146,9 +154,11 @@ def main():
             logger.error(f"音频文件不存在: {args.audio_file}")
             sys.exit(1)
             
-        if not os.path.isfile(args.whisper_model_path):
-            logger.error(f"Whisper模型文件不存在: {args.whisper_model_path}")
-            sys.exit(1)
+        # 对于whisper-cpp，模型可以是模型名称也可以是模型文件路径
+        if args.transcriber_type == 'openai-whisper':
+            if not os.path.isfile(args.whisper_model_path):
+                logger.error(f"Whisper模型文件不存在: {args.whisper_model_path}")
+                sys.exit(1)
         
         # 确保输出目录存在
         output_dir = Path(args.output_dir)
@@ -162,12 +172,13 @@ def main():
         transcript_file = output_dir / f"{audio_name}_{timestamp}_transcript.txt"
         summary_file = output_dir / f"{audio_name}_{timestamp}_summary.txt"
         
-        logger.info("初始化播客转录器...")
+        logger.info(f"初始化播客转录器，使用转录器类型: {args.transcriber_type}...")
         transcriber = PodcastTranscriber(
             whisper_model_path=args.whisper_model_path,
             hf_token=args.hf_token,
             diarization_model=args.diarization_model,
-            summarization_model=args.summarization_model
+            summarization_model=args.summarization_model,
+            transcriber_type=args.transcriber_type
         )
         
         logger.info("开始转录和摘要...")

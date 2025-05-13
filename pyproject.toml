@@ -21,6 +21,9 @@ dependencies = [
     "soundfile",
 ]
 
+[project.optional-dependencies]
+whisper-cpp = ["pywhispercpp>=1.3.0"]
+
 [project.scripts]
 podcast-transcribe = "podcast_transcribe.cli:main"
 
