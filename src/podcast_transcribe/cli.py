@@ -10,6 +10,7 @@ from pathlib import Path
 from datetime import datetime
 
 from .transcriber import PodcastTranscriber, TranscriberType
+from .utils.summarization import SummarizerType
 
 
 def setup_logging(verbose: bool = False) -> logging.Logger:
@@ -106,7 +107,7 @@ def parse_args() -> argparse.Namespace:
         '--summarization_model', '-s',
         type=str,
         default='facebook/bart-large-cnn',
-        help='摘要模型名称'
+        help='摘要模型名称或路径'
     )
     
     parser.add_argument(
@@ -115,6 +116,42 @@ def parse_args() -> argparse.Namespace:
         choices=['openai-whisper', 'whisper-cpp'],
         default='openai-whisper',
         help='选择转录器类型：原生OpenAI Whisper或whisper.cpp'
+    )
+    
+    parser.add_argument(
+        '--summarizer_type',
+        type=str,
+        choices=['transformers', 'qwen'],
+        default='transformers',
+        help='选择摘要器类型：Hugging Face Transformers或Qwen本地模型'
+    )
+    
+    parser.add_argument(
+        '--summarizer_device',
+        type=str,
+        choices=['cuda', 'cpu'],
+        default='cuda',
+        help='摘要模型运行设备（默认为CUDA）'
+    )
+    
+    parser.add_argument(
+        '--no_4bit_quantization',
+        action='store_true',
+        help='禁用4bit量化加载Qwen模型（仅对Qwen模型有效）'
+    )
+    
+    parser.add_argument(
+        '--temperature',
+        type=float,
+        default=0.7,
+        help='生成摘要的温度参数（仅对Qwen模型有效）'
+    )
+    
+    parser.add_argument(
+        '--top_p',
+        type=float,
+        default=0.9,
+        help='生成摘要的top_p参数（仅对Qwen模型有效）'
     )
     
     parser.add_argument(
@@ -172,14 +209,27 @@ def main():
         transcript_file = output_dir / f"{audio_name}_{timestamp}_transcript.txt"
         summary_file = output_dir / f"{audio_name}_{timestamp}_summary.txt"
         
-        logger.info(f"初始化播客转录器，使用转录器类型: {args.transcriber_type}...")
+        logger.info(f"初始化播客转录器，使用转录器类型: {args.transcriber_type}，摘要器类型: {args.summarizer_type}...")
         transcriber = PodcastTranscriber(
             whisper_model_path=args.whisper_model_path,
             hf_token=args.hf_token,
             diarization_model=args.diarization_model,
             summarization_model=args.summarization_model,
-            transcriber_type=args.transcriber_type
+            transcriber_type=args.transcriber_type,
+            summarizer_type=args.summarizer_type,
+            summarizer_device=args.summarizer_device,
+            summarizer_load_in_4bit=not args.no_4bit_quantization
         )
+        
+        # 准备摘要额外参数
+        summary_kwargs = {}
+        
+        # 对于Qwen模型，添加相关参数
+        if args.summarizer_type == 'qwen':
+            summary_kwargs.update({
+                'temperature': args.temperature,
+                'top_p': args.top_p
+            })
         
         logger.info("开始转录和摘要...")
         summary, transcript = transcriber.transcribe_and_summarize(
@@ -187,7 +237,8 @@ def main():
             max_summary_length=args.max_summary_length,
             min_summary_length=args.min_summary_length,
             output_transcript_file=transcript_file,
-            output_summary_file=summary_file
+            output_summary_file=summary_file,
+            **summary_kwargs
         )
         
         logger.info(f"转录文本已保存到: {transcript_file}")

@@ -9,7 +9,7 @@ from typing import Tuple, Dict, Any, List, Optional, Literal
 from .utils.audio import load_audio, extract_audio_segment
 from .utils.diarization import SpeakerDiarizer
 from .utils.transcription import AbstractTranscriber, WhisperTranscriber, WhisperCppTranscriber
-from .utils.summarization import TextSummarizer
+from .utils.summarization import TextSummarizer, SummarizerType
 
 
 # 配置日志
@@ -33,7 +33,10 @@ class PodcastTranscriber:
         diarization_model: str = "pyannote/speaker-diarization-3.1",
         summarization_model: str = "facebook/bart-large-cnn",
         sample_rate: int = 16000,
-        transcriber_type: TranscriberType = "openai-whisper"
+        transcriber_type: TranscriberType = "openai-whisper",
+        summarizer_type: SummarizerType = "transformers",
+        summarizer_device: str = "cuda",
+        summarizer_load_in_4bit: bool = True
     ):
         """
         初始化播客转录器
@@ -42,9 +45,12 @@ class PodcastTranscriber:
             whisper_model_path: Whisper模型路径
             hf_token: Hugging Face API 令牌
             diarization_model: 说话人分割模型名称
-            summarization_model: 摘要模型名称
+            summarization_model: 摘要模型名称或路径
             sample_rate: 音频采样率（Hz）
             transcriber_type: 转录器类型，可选 "openai-whisper" 或 "whisper-cpp"
+            summarizer_type: 摘要器类型，可选 "transformers" 或 "qwen"
+            summarizer_device: 摘要器推理设备，"cuda"或"cpu"
+            summarizer_load_in_4bit: 是否使用4bit量化加载摘要模型（仅对Qwen有效）
         """
         self.whisper_model_path = whisper_model_path
         self.hf_token = hf_token
@@ -52,13 +58,16 @@ class PodcastTranscriber:
         self.summarization_model = summarization_model
         self.sample_rate = sample_rate
         self.transcriber_type = transcriber_type
+        self.summarizer_type = summarizer_type
+        self.summarizer_device = summarizer_device
+        self.summarizer_load_in_4bit = summarizer_load_in_4bit
         
         # 初始化组件
         self._diarizer = None
         self._transcriber = None
         self._summarizer = None
         
-        logger.info(f"播客转录器初始化完成，使用转录器类型: {transcriber_type}")
+        logger.info(f"播客转录器初始化完成，使用转录器类型: {transcriber_type}，摘要器类型: {summarizer_type}")
     
     @property
     def diarizer(self) -> SpeakerDiarizer:
@@ -91,9 +100,12 @@ class PodcastTranscriber:
     def summarizer(self) -> TextSummarizer:
         """懒加载文本摘要器"""
         if self._summarizer is None:
-            logger.info(f"初始化文本摘要器: {self.summarization_model}")
+            logger.info(f"初始化文本摘要器: {self.summarization_model}, 类型: {self.summarizer_type}")
             self._summarizer = TextSummarizer(
-                model_name=self.summarization_model
+                summarizer_type=self.summarizer_type,
+                model_name_or_path=self.summarization_model,
+                device=self.summarizer_device,
+                load_in_4bit=self.summarizer_load_in_4bit
             )
         return self._summarizer
     
@@ -103,7 +115,8 @@ class PodcastTranscriber:
         max_summary_length: int = 150,
         min_summary_length: int = 30,
         output_transcript_file: Optional[str] = None,
-        output_summary_file: Optional[str] = None
+        output_summary_file: Optional[str] = None,
+        **summary_kwargs
     ) -> Tuple[str, str]:
         """
         转录和摘要播客音频文件
@@ -114,6 +127,7 @@ class PodcastTranscriber:
             min_summary_length: 最小摘要长度
             output_transcript_file: 输出转录文本的文件路径（如果提供）
             output_summary_file: 输出摘要文本的文件路径（如果提供）
+            **summary_kwargs: 传递给摘要器的额外参数
             
         返回:
             摘要文本和完整转录文本的元组
@@ -156,9 +170,10 @@ class PodcastTranscriber:
         # 生成摘要
         logger.info("生成摘要...")
         summary = self.summarizer.summarize(
-            total_transcription,
+            text=total_transcription,
             max_length=max_summary_length,
-            min_length=min_summary_length
+            min_length=min_summary_length,
+            **summary_kwargs
         )
         
         # 如果提供了输出文件路径，写入文件
