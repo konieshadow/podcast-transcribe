@@ -1,0 +1,171 @@
+"""
+基于MLX实现的语音识别模块，使用parakeet-tdt模型
+"""
+
+import os
+from pydub import AudioSegment
+from typing import Dict, List, Union
+import logging
+import tempfile
+import numpy as np
+import soundfile as sf
+
+# 导入基类
+from .asr_base import BaseMLXTranscriber, TranscriptionResult
+
+# 配置日志
+logger = logging.getLogger("asr")
+
+
+class MLXParakeetTranscriber(BaseMLXTranscriber):
+    """使用MLX加载和运行parakeet-tdt-0.6b-v2模型的转录器"""
+    
+    def __init__(
+        self, 
+        model_name: str = "mlx-community/parakeet-tdt-0.6b-v2",
+    ):
+        """
+        初始化转录器
+        
+        参数:
+            model_name: 模型名称
+        """
+        super().__init__(model_name=model_name)
+    
+    def _load_model(self):
+        """加载Parakeet模型"""
+        try:
+            # 懒加载parakeet_mlx
+            try:
+                from parakeet_mlx import from_pretrained
+            except ImportError:
+                raise ImportError("请先安装parakeet-mlx库: pip install parakeet-mlx")
+                
+            logger.info(f"开始加载模型 {self.model_name}")
+            self.model = from_pretrained(self.model_name)
+            logger.info(f"模型加载成功")
+        except Exception as e:
+            logger.error(f"加载模型失败: {str(e)}", exc_info=True)
+            raise RuntimeError(f"加载模型失败: {str(e)}")
+    
+    def _prepare_audio(self, audio: AudioSegment) -> AudioSegment:
+        """
+        准备音频数据
+        
+        参数:
+            audio: 输入的AudioSegment对象
+            
+        返回:
+            处理后的AudioSegment对象
+        """
+        logger.debug(f"准备音频数据: 时长={len(audio)/1000:.2f}秒, 采样率={audio.frame_rate}Hz, 声道数={audio.channels}")
+        
+        # 确保采样率为16kHz
+        if audio.frame_rate != 16000:
+            logger.debug(f"重采样音频从 {audio.frame_rate}Hz 到 16000Hz")
+            audio = audio.set_frame_rate(16000)
+            
+        # 确保是单声道
+        if audio.channels > 1:
+            logger.debug(f"将{audio.channels}声道音频转换为单声道")
+            audio = audio.set_channels(1)
+            
+        logger.debug(f"音频处理完成")
+        
+        return audio
+    
+    def _detect_language(self, text: str) -> str:
+        """
+        简单的语言检测（基于经验规则）
+        
+        参数:
+            text: 识别出的文本
+            
+        返回:
+            检测到的语言代码
+        """
+        # 简单的规则检测，实际应用中应使用更准确的语言检测
+        chinese_chars = len([c for c in text if '\u4e00' <= c <= '\u9fff'])
+        chinese_ratio = chinese_chars / len(text) if text else 0
+        logger.debug(f"语言检测: 中文字符比例 = {chinese_ratio:.2f}")
+        
+        if chinese_chars > len(text) * 0.3:
+            return "zh"
+        return "en"
+    
+    def _convert_segments(self, aligned_result) -> List[Dict[str, Union[float, str]]]:
+        """
+        将模型的分段结果转换为所需格式
+        
+        参数:
+            aligned_result: 模型返回的分段结果
+            
+        返回:
+            转换后的分段列表
+        """
+        segments = []
+        
+        for sentence in aligned_result.sentences:
+            segments.append({
+                "start": sentence.start,
+                "end": sentence.end,
+                "text": sentence.text
+            })
+        
+        return segments
+    
+    def _perform_transcription(self, audio_data):
+        """
+        执行转录
+        
+        参数:
+            audio_data: 音频数据（numpy数组）
+            
+        返回:
+            模型的转录结果
+        """
+        # 由于parakeet-mlx可能不直接支持numpy数组输入
+        # 创建临时文件并写入音频数据
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=True) as temp_file:
+            # 确保数据在[-1, 1]范围内
+            if audio_data.max() > 1.0 or audio_data.min() < -1.0:
+                audio_data = np.clip(audio_data, -1.0, 1.0)
+            
+            # 写入临时文件
+            sf.write(temp_file.name, audio_data, 16000, 'PCM_16')
+            
+            # 使用临时文件进行转录
+            result = self.model.transcribe(temp_file.name)
+        
+        return result
+    
+    def _get_text_from_result(self, result):
+        """
+        从结果中获取文本
+        
+        参数:
+            result: 模型的转录结果
+            
+        返回:
+            转录的文本
+        """
+        return result.text
+
+
+def transcribe_audio(
+    audio_segment: AudioSegment,
+    model_name: str = "mlx-community/parakeet-tdt-0.6b-v2",
+) -> TranscriptionResult:
+    """
+    使用MLX和parakeet-tdt模型转录音频
+    
+    参数:
+        audio_segment: 输入的AudioSegment对象
+        model_name: 使用的模型名称
+        
+    返回:
+        TranscriptionResult对象，包含转录的文本、分段和语言
+    """
+    logger.info(f"调用transcribe_audio函数，音频长度: {len(audio_segment)/1000:.2f}秒")
+    transcriber = MLXParakeetTranscriber(model_name=model_name)
+    return transcriber.transcribe(audio_segment)
