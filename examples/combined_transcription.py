@@ -20,6 +20,7 @@ from src.podcast_transcribe.transcriber import transcribe_audio
 def main():
     """主函数"""
     audio_file = Path.joinpath(Path(__file__).parent, "input", "lex_ai_john_carmack_1.wav")  # 播客音频文件路径
+    # audio_file = "/Users/konie/Desktop/voices/lex_ai_john_carmack_30.wav"
     
     # 模型配置
     asr_model_name = "mlx-community/parakeet-tdt-0.6b-v2"  # ASR模型名称
