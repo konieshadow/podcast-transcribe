@@ -6,18 +6,13 @@ import os
 import numpy as np
 from pydub import AudioSegment
 from typing import Dict, List, Union, Optional, Tuple
-from dataclasses import dataclass
+# from dataclasses import dataclass # dataclass is now imported from schemas if needed or already there
 import logging
+
+from ..schemas import TranscriptionResult # Added import
 
 # 配置日志
 logger = logging.getLogger("asr")
-
-@dataclass
-class TranscriptionResult:
-    """转录结果数据类"""
-    text: str  # 转录的文本
-    segments: List[Dict[str, Union[float, str]]]  # 包含时间戳的分段
-    language: str  # 检测到的语言
 
 
 class BaseMLXTranscriber:

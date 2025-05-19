@@ -1,34 +1,11 @@
 import requests
 import feedparser
-from dataclasses import dataclass, field
-from typing import List, Optional, Dict
+# from dataclasses import dataclass, field # 已移除
+from typing import Optional # , List, Dict # List 和 Dict 不再需要
 from datetime import datetime
 import time
 
-@dataclass
-class PodcastEpisode:
-    title: Optional[str] = None
-    link: Optional[str] = None
-    published_date: Optional[datetime] = None
-    summary: Optional[str] = None # 简短摘要
-    shownotes: Optional[str] = None # 详细的shownotes，通常是HTML格式
-    audio_url: Optional[str] = None
-    guid: Optional[str] = None
-    duration: Optional[str] = None # 例如，来自 <itunes:duration>
-    episode_type: Optional[str] = None # 例如，来自 <itunes:episodetype>
-    season: Optional[int] = None # 例如，来自 <itunes:season>
-    episode_number: Optional[int] = None # 例如，来自 <itunes:episode>
-
-@dataclass
-class PodcastChannel:
-    title: Optional[str] = None
-    link: Optional[str] = None
-    description: Optional[str] = None
-    language: Optional[str] = None
-    image_url: Optional[str] = None
-    author: Optional[str] = None # 例如，来自 <itunes:author>
-    last_build_date: Optional[datetime] = None
-    episodes: List[PodcastEpisode] = field(default_factory=list)
+from ..schemas import PodcastEpisode, PodcastChannel
 
 def _parse_date(date_str: Optional[str]) -> Optional[datetime]:
     if not date_str:

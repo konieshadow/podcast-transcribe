@@ -6,19 +6,13 @@ import os
 import numpy as np
 from pydub import AudioSegment
 from typing import Dict, List, Union, Optional, Tuple
-from dataclasses import dataclass
 import logging
 import torch
 
+from ..schemas import DiarizationResult
+
 # 配置日志
 logger = logging.getLogger("diarization")
-
-@dataclass
-class DiarizationResult:
-    """说话人分离结果数据类"""
-    segments: List[Dict[str, Union[float, str, int]]]  # 包含时间戳和说话人ID的分段
-    num_speakers: int  # 检测到的说话人数量
-
 
 class PyannoteTranscriber:
     """使用pyannote/speaker-diarization-3.1模型进行说话人分离"""

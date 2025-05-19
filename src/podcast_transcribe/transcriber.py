@@ -6,7 +6,6 @@ import os
 import numpy as np
 from pydub import AudioSegment
 from typing import Dict, List, Union, Optional, Tuple, Iterator, Any
-from dataclasses import dataclass
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -15,28 +14,10 @@ import re # 新增导入
 # 导入ASR和说话人分离模块，使用相对导入
 from .asr.asr_parakeet_mlx import MLXParakeetTranscriber, TranscriptionResult
 from .diarization.diarization_pyannote import PyannoteTranscriber, DiarizationResult
+from .schemas import EnhancedSegment, CombinedTranscriptionResult # 新增导入
 
 # 配置日志
 logger = logging.getLogger("podcast_transcribe")
-
-@dataclass
-class EnhancedSegment:
-    """增强的转录分段，包含说话人信息"""
-    start: float  # 开始时间（秒）
-    end: float  # 结束时间（秒）
-    text: str  # 转录的文本
-    speaker: str  # 说话人ID
-    language: str  # 检测到的语言
-
-
-@dataclass
-class CombinedTranscriptionResult:
-    """结合ASR和说话人分离的转录结果"""
-    segments: List[EnhancedSegment]  # 包含说话人和文本的分段
-    text: str  # 完整转录文本
-    language: str  # 检测到的语言
-    num_speakers: int  # 检测到的说话人数量
-
 
 class CombinedTranscriber:
     """整合ASR和说话人分离的转录器"""
