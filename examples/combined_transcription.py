@@ -5,9 +5,11 @@
 从本地文件读取音频，同时进行转录和说话人分离
 """
 
+import json
 import os
 import sys
 from pathlib import Path
+from dataclasses import asdict
 
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -79,6 +81,15 @@ def main():
                 print(f"段落 {i}/{len(result.segments)}: [{segment.start:.2f}s - {segment.end:.2f}s] 说话人: {segment.speaker} 文本: {segment.text}")
             elif i == 21:
                 print("... 省略中间部分 ...")
+
+        # 将转录结果保存为json文件，文件名取自音频文件名
+        output_file = Path.joinpath(Path(__file__).parent, "output", f"{audio_file.stem}.transcription.json")
+        # 创建上层文件夹
+        output_dir = Path.joinpath(Path(__file__).parent, "output")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        with open(output_file, "w") as f:
+            json.dump(asdict(result), f)
+            print(f"转录结果已保存到 {output_file}")
         
         return 0
         
