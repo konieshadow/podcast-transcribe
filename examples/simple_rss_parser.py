@@ -10,7 +10,7 @@ from src.podcast_transcribe.rss.podcast_rss_parser import parse_podcast_rss
 
 if __name__ == '__main__':
     # 使用示例:
-    lex_fridman_rss = "https://lexfridman.com/feed/podcast/"
+    lex_fridman_rss = "https://feeds.buzzsprout.com/2460059.rss"
     print(f"正在解析 Lex Fridman Podcast RSS: {lex_fridman_rss}")
     podcast_data = parse_podcast_rss(lex_fridman_rss)
 

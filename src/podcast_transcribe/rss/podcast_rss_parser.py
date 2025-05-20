@@ -39,8 +39,11 @@ def fetch_rss_content(rss_url: str) -> Optional[bytes]:
     返回:
         bytes 类型的 RSS 内容，如果获取失败则返回 None。
     """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'
+    }
     try:
-        response = requests.get(rss_url, timeout=10)
+        response = requests.get(rss_url, headers=headers, timeout=30)
         response.raise_for_status() # 针对 HTTP 错误抛出异常
         return response.content
     except requests.exceptions.RequestException as e:
@@ -84,14 +87,20 @@ def parse_rss_xml_content(rss_content: bytes) -> Optional[PodcastChannel]:
     for entry in feed.entries:
         # 确定 shownotes：优先使用 content:encoded，然后是 itunes:summary，其次是 description/summary
         shownotes = None
-        if 'content' in entry: # 检查 <content:encoded>
-            # feedparser 将多个内容版本存储在一个列表中
-            # 通常第一个是最详细的
-            shownotes = entry.content[0].value if entry.content and entry.content[0].value else None
+        # 1. 优先尝试 <content:encoded>
+        # entry.content 是一个 FeedParserDict 对象列表
+        if 'content' in entry and entry.content:
+            for content_item in entry.content:
+                # 检查 content_item 是否有 value 属性并且该值非空
+                if hasattr(content_item, 'value') and content_item.value:
+                    shownotes = content_item.value
+                    break # 找到第一个有效的 content:encoded，停止查找
         
+        # 2. 如果没有从 content:encoded 获得，尝试 itunes:summary
         if not shownotes and 'itunes_summary' in entry:
             shownotes = entry.itunes_summary
         
+        # 3. 最后回退到 summary 或 description
         if not shownotes: # 回退到 summary 或 description
             shownotes = entry.get('summary') or entry.get('description')
 
@@ -137,7 +146,7 @@ def parse_rss_xml_content(rss_content: bytes) -> Optional[PodcastChannel]:
 
     return podcast_channel
 
-def get_podcast_data_from_url(rss_url: str) -> Optional[PodcastChannel]:
+def parse_podcast_rss(rss_url: str) -> Optional[PodcastChannel]:
     """
     从给定的 RSS URL 获取并解析播客数据。
 
@@ -151,9 +160,3 @@ def get_podcast_data_from_url(rss_url: str) -> Optional[PodcastChannel]:
     if rss_content:
         return parse_rss_xml_content(rss_content)
     return None
-
-# 为了保持与之前调用方式的兼容性（如果其他地方已经在使用 parse_podcast_rss），
-# 可以将原来的 parse_podcast_rss 指向新的顶层函数。
-# 或者，如果确定没有其他地方使用旧名称，可以直接删除旧的 parse_podcast_rss。
-# 这里我们选择重命名/替换的方式。
-parse_podcast_rss = get_podcast_data_from_url

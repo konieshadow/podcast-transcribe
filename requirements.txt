@@ -7,6 +7,7 @@ torchaudio>=2.7.0
 soundfile>=0.13.1
 feedparser>=6.0.11
 requests>=2.32.3
+gradio>=5.30.0
 
 # 可选依赖 - whisper.cpp 绑定
 pywhispercpp>=1.3.0
