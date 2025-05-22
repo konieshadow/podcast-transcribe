@@ -5,7 +5,7 @@
 import os
 import numpy as np
 from pydub import AudioSegment
-from typing import Dict, List, Union, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Text, Union, Optional, Tuple
 import logging
 import torch
 
@@ -143,8 +143,26 @@ class PyannoteTranscriber:
         try:
             # 执行说话人分离
             logger.debug("开始执行说话人分离")
-            diarization = self.pipeline(temp_audio_path)
-            
+            from pyannote.audio.pipelines.utils.hook import ProgressHook
+
+            # 自定义 ProgressHook 类
+            class CustomProgressHook(ProgressHook):
+                def __call__(
+                    self,
+                    step_name: Text,
+                    step_artifact: Any,
+                    file: Optional[Mapping] = None,
+                    total: Optional[int] = None,
+                    completed: Optional[int] = None,
+                ):
+                    if completed is not None:
+                        logger.info(f"已处理 {step_name}: {completed:.1f} 秒 / {total:.1f} 秒 ({completed/total*100:.1f}%)")
+                    else:
+                        super().__call__(step_name, step_artifact, file, total, completed)
+
+            with CustomProgressHook() as hook:
+                diarization = self.pipeline(temp_audio_path, hook=hook)
+
             # 转换分段结果
             segments, num_speakers = self._convert_segments(diarization)
             
