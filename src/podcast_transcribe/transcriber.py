@@ -14,7 +14,9 @@ import re # 新增导入
 # 导入ASR和说话人分离模块，使用相对导入
 from .asr.asr_parakeet_mlx import MLXParakeetTranscriber, TranscriptionResult
 from .diarization.diarization_pyannote import PyannoteTranscriber, DiarizationResult
-from .schemas import EnhancedSegment, CombinedTranscriptionResult # 新增导入
+from .schemas import EnhancedSegment, CombinedTranscriptionResult, PodcastChannel, PodcastEpisode  # 新增导入
+from .summary.speaker_identify import recognize_speaker_names  # 新增导入
+from .llm.llm_gemma import GemmaMLXChatCompletion  # 新增导入
 
 # 配置日志
 logger = logging.getLogger("podcast_transcribe")
@@ -391,6 +393,70 @@ class CombinedTranscriber:
         final_enhanced_segments.sort(key=lambda seg: seg.start)
         return final_enhanced_segments
 
+    def transcribe_podcast(
+        self, 
+        audio: AudioSegment, 
+        podcast_info: Optional[PodcastChannel] = None,
+        episode_info: Optional[PodcastEpisode] = None,
+        llm_client: Optional[GemmaMLXChatCompletion] = None,
+    ) -> CombinedTranscriptionResult:
+        """
+        专门针对播客剧集的音频转录方法
+        
+        参数:
+            audio: 要转录的AudioSegment对象
+            podcast_info: 播客频道信息
+            episode_info: 播客剧集信息
+            llm_client: 用于说话人识别的LLM客户端
+            
+        返回:
+            包含完整转录和识别后说话人名称的结果
+        """
+        logger.info(f"开始转录播客剧集 {len(audio)/1000:.2f} 秒的音频")
+        
+        # 1. 先执行基础转录流程
+        transcription_result = self.transcribe(audio)
+        
+        # 2. 如果没有提供播客和剧集信息，或者没有提供LLM客户端，直接返回基础转录结果
+        if not podcast_info or not llm_client:
+            logger.info("未提供播客信息或LLM客户端，无法识别说话人名称")
+            return transcription_result
+        
+        # 3. 识别说话人名称
+        logger.info("识别说话人名称...")
+        speaker_name_map = recognize_speaker_names(
+            transcription_result.segments,
+            podcast_info,
+            episode_info,
+            llm_client
+        )
+        
+        # 4. 将识别的说话人名称添加到转录结果中
+        enhanced_segments_with_names = []
+        for segment in transcription_result.segments:
+            # 复制原始段落并添加说话人名称
+            speaker_id = segment.speaker
+            speaker_name = speaker_name_map.get(speaker_id, None)
+            
+            # 创建新的段落对象，包含说话人名称
+            new_segment = EnhancedSegment(
+                start=segment.start,
+                end=segment.end,
+                text=segment.text,
+                speaker=speaker_id,
+                language=segment.language,
+                speaker_name=speaker_name
+            )
+            enhanced_segments_with_names.append(new_segment)
+        
+        # 5. 创建并返回新的转录结果
+        return CombinedTranscriptionResult(
+            segments=enhanced_segments_with_names,
+            text=transcription_result.text,
+            language=transcription_result.language,
+            num_speakers=transcription_result.num_speakers
+        )
+
 
 def transcribe_audio(
     audio_segment: AudioSegment,
@@ -429,3 +495,55 @@ def transcribe_audio(
     
     # 直接调用 transcribe 方法
     return transcriber.transcribe(audio_segment)
+
+def transcribe_podcast_audio(
+    audio_segment: AudioSegment,
+    podcast_info: Optional[PodcastChannel] = None,
+    episode_info: Optional[PodcastEpisode] = None,
+    asr_model_name: str = "mlx-community/parakeet-tdt-0.6b-v2",
+    diarization_model_name: str = "pyannote/speaker-diarization-3.1",
+    llm_model_name: str = "mlx-community/gemma-3-12b-it-4bit-DWQ",
+    hf_token: Optional[str] = None,
+    device: str = "cpu",
+    segmentation_batch_size: int = 64,
+    parallel: bool = False,
+) -> CombinedTranscriptionResult:
+    """
+    针对播客剧集的音频转录函数，包含说话人名称识别
+    
+    参数:
+        audio_segment: 输入的AudioSegment对象
+        podcast_info: 播客频道信息
+        episode_info: 播客剧集信息
+        asr_model_name: ASR模型名称
+        diarization_model_name: 说话人分离模型名称
+        llm_model_name: LLM模型名称，如果为None则无法识别说话人名称
+        hf_token: Hugging Face令牌
+        device: 推理设备，'cpu'或'cuda'
+        segmentation_batch_size: 分割批处理大小，默认为64
+        parallel: 是否并行执行ASR和说话人分离，默认为False
+        
+    返回:
+        包含说话人名称的完整转录结果
+    """
+    logger.info(f"调用transcribe_podcast_audio函数，音频长度: {len(audio_segment)/1000:.2f}秒")
+    
+    transcriber = CombinedTranscriber(
+        asr_model_name=asr_model_name,
+        diarization_model_name=diarization_model_name,
+        hf_token=hf_token,
+        device=device,
+        segmentation_batch_size=segmentation_batch_size,
+        parallel=parallel
+    )
+    
+    # 初始化LLM客户端（如果提供了模型名称）
+    llm_client = GemmaMLXChatCompletion(llm_model_name)
+    
+    # 调用播客专用转录方法
+    return transcriber.transcribe_podcast(
+        audio=audio_segment,
+        podcast_info=podcast_info,
+        episode_info=episode_info,
+        llm_client=llm_client
+    )

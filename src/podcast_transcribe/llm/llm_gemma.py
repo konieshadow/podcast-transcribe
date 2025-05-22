@@ -8,7 +8,7 @@ from typing import List, Dict, Optional, Union, Literal
 
 
 class GemmaMLXChatCompletion:
-    def __init__(self, model_name: str = "mlx-community/gemma-3-4b-it-4bit-DWQ"):
+    def __init__(self, model_name: str = "mlx-community/gemma-3-12b-it-4bit-DWQ"):
         self.model_name = model_name
         try:
             self.model, self.tokenizer = load(model_name)

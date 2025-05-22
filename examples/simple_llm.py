@@ -14,7 +14,7 @@ if __name__ == "__main__":
     try:
         # gemma_chat = GemmaMLXChatCompletion(model_name="mlx-community/gemma-3-12b-it-4bit-DWQ")
         # 或者，如果您有更小、更快的模型，可以尝试使用，例如："mlx-community/gemma-2b-it-8bit"
-        gemma_chat = GemmaMLXChatCompletion(model_name="mlx-community/gemma-3-4b-it-4bit-DWQ")
+        gemma_chat = GemmaMLXChatCompletion(model_name="mlx-community/gemma-3-12b-it-4bit-DWQ")
         print("模型加载成功。")
 
         print("\n--- 示例 1: 简单用户查询 ---")

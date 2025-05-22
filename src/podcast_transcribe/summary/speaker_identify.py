@@ -8,104 +8,6 @@ from datetime import datetime
 from ..schemas import EnhancedSegment, PodcastChannel, PodcastEpisode
 from ..llm.llm_gemma import GemmaMLXChatCompletion
 
-# # --- Mock classes for standalone testing (comment out or remove in production) ---
-# @dataclass
-# class EnhancedSegment:
-#     start: float
-#     end: float
-#     text: str
-#     speaker: str
-#     language: str
-
-# @dataclass
-# class PodcastEpisode:
-#     title: Optional[str] = None
-#     link: Optional[str] = None
-#     published_date: Optional[datetime] = None
-#     summary: Optional[str] = None
-#     shownotes: Optional[str] = None
-#     audio_url: Optional[str] = None
-#     guid: Optional[str] = None
-#     duration: Optional[str] = None
-#     episode_type: Optional[str] = None
-#     season: Optional[int] = None
-#     episode_number: Optional[int] = None
-
-# @dataclass
-# class PodcastChannel:
-#     title: Optional[str] = None
-#     link: Optional[str] = None
-#     description: Optional[str] = None
-#     language: Optional[str] = None
-#     image_url: Optional[str] = None
-#     author: Optional[str] = None
-#     last_build_date: Optional[datetime] = None
-#     episodes: List[PodcastEpisode] = field(default_factory=list)
-
-# class MockGemmaMLXChatCompletion:
-#     def __init__(self, model_name: str = "mock_gemma"):
-#         self.model_name = model_name
-#         print(f"MockGemmaMLXChatCompletion initialized with model: {model_name}")
-
-#     def create(self, messages: List[Dict[str, str]], temperature: float, max_tokens: int, **kwargs) -> Dict:
-#         print("---- Mock LLM Input Messages ----")
-#         # for msg in messages:
-#         #     print(f"Role: {msg['role']}")
-#         #     print(f"Content: {msg['content']}")
-#         #     print("-" * 20)
-        
-#         prompt_content = ""
-#         for msg in messages:
-#             if msg['role'] == 'user':
-#                 prompt_content += msg['content']
-
-#         # Try to find speaker_ids from the prompt to make the mock more dynamic
-#         speaker_ids_in_prompt = []
-#         try:
-#             # Assuming the speaker info is a JSON string within the user prompt
-#             speaker_data_match = re.search(r'(\\[\\s*\\{.*?speaker_id.*?\\}\\s*\\])', prompt_content, re.DOTALL)
-#             if speaker_data_match:
-#                 speaker_data_str = speaker_data_match.group(1)
-#                 # Correcting the regex for extracting speaker_id values
-#                 loaded_speaker_data = json.loads(speaker_data_str)
-#                 for item in loaded_speaker_data:
-#                     speaker_ids_in_prompt.append(item["speaker_id"])
-#             else: # Fallback if JSON block not found, try simple regex (less robust)
-#                 speaker_ids_in_prompt = re.findall(r'"speaker_id":\\s*"(SPEAKER_\\d+)"', prompt_content)
-#         except Exception as e:
-#             print(f"Mock LLM: Error parsing speaker_ids from prompt: {e}")
-#             # Fallback to predefined if parsing fails
-#             speaker_ids_in_prompt = ["SPEAKER_00", "SPEAKER_01"]
-
-
-#         mock_response_content = {}
-#         if not speaker_ids_in_prompt: # Ensure there's at least one speaker for the mock
-#             speaker_ids_in_prompt.append("SPEAKER_00")
-
-#         if speaker_ids_in_prompt[0] not in mock_response_content: # Assign first as host
-#             mock_response_content[speaker_ids_in_prompt[0]] = "播客主持 Mock"
-        
-#         guest_idx = 1
-#         for spk_id in speaker_ids_in_prompt[1:]:
-#             if spk_id not in mock_response_content:
-#                 mock_response_content[spk_id] = f"嘉宾 {guest_idx} Mock"
-#                 guest_idx += 1
-        
-#         print(f"Mock LLM will respond with: {mock_response_content}")
-
-#         return {
-#             "choices": [
-#                 {
-#                     "message": {
-#                         "role": "assistant",
-#                         "content": json.dumps(mock_response_content, ensure_ascii=False)
-#                     }
-#                 }
-#             ],
-#             "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
-#         }
-# # --- End of Mock classes ---
-
 
 def _clean_html(html_string: Optional[str]) -> str:
     """
@@ -123,8 +25,8 @@ def _clean_html(html_string: Optional[str]) -> str:
 
 def _get_dialogue_samples(
     segments: List[EnhancedSegment], 
-    max_samples_per_speaker: int = 2, 
-    max_length_per_sample: int = 150 # 增加样本长度
+    max_samples_per_speaker: int = 3,  # 增加样本数量
+    max_length_per_sample: int = 200   # 增加样本长度
 ) -> Dict[str, List[str]]:
     """
     为每个说话人提取对话样本。
@@ -175,13 +77,53 @@ def recognize_speaker_names(
 
     dialogue_samples = _get_dialogue_samples(segments)
     
+    # 增加每个说话人的话语分析信息，包括话语频率和长度
+    speaker_stats = {}
+    for segment in segments:
+        speaker = segment.speaker
+        if speaker == "UNKNOWN" or not segment.text.strip():
+            continue
+            
+        if speaker not in speaker_stats:
+            speaker_stats[speaker] = {
+                "total_segments": 0,
+                "total_chars": 0,
+                "avg_segment_length": 0,
+                "intro_likely": False  # 是否有介绍性质的话语
+            }
+        
+        speaker_stats[speaker]["total_segments"] += 1
+        speaker_stats[speaker]["total_chars"] += len(segment.text)
+        
+        # 检测可能的自我介绍或他人介绍
+        lower_text = segment.text.lower()
+        intro_patterns = [
+            r'欢迎来到', r'欢迎收听', r'我是', r'我叫', r'大家好', r'今天的嘉宾是', r'我们请到了',
+            r'welcome to', r'i\'m your host', r'this is', r'today we have', r'joining us', 
+            r'our guest', r'my name is'
+        ]
+        if any(re.search(pattern, lower_text) for pattern in intro_patterns):
+            speaker_stats[speaker]["intro_likely"] = True
+    
+    # 计算平均话语长度
+    for speaker, stats in speaker_stats.items():
+        if stats["total_segments"] > 0:
+            stats["avg_segment_length"] = stats["total_chars"] / stats["total_segments"]
+    
+    # 创建增强的说话人信息，包含统计数据
     speaker_info_for_prompt = []
     for speaker_id in unique_speaker_ids:
         samples = dialogue_samples.get(speaker_id, ["(No dialogue samples available)"])
-        # 确保即使只有一个样本，也用 " | " 连接（虽然这里只会有一个）
+        stats = speaker_stats.get(speaker_id, {"total_segments": 0, "avg_segment_length": 0, "intro_likely": False})
+        
         speaker_info_for_prompt.append({
             "speaker_id": speaker_id,
-            "dialogue_sample": " | ".join(samples) 
+            "dialogue_samples": samples,
+            "speech_stats": {
+                "total_segments": stats["total_segments"],
+                "avg_segment_length": round(stats["avg_segment_length"], 2),
+                "has_intro_pattern": stats["intro_likely"]
+            }
         })
 
     # 安全地访问属性，提供默认值
@@ -208,7 +150,7 @@ def recognize_speaker_names(
     if len(cleaned_episode_shownotes) > max_shownotes_length:
         episode_shownotes_for_prompt += "..."
 
-    system_prompt = """You are an experienced podcast content analyst. Your task is to accurately identify the real names, nicknames, or roles of different speakers (tagged in SPEAKER_XX format) in a podcast episode, based on the provided metadata, episode information, and dialogue snippets."""
+    system_prompt = """You are an experienced podcast content analyst. Your task is to accurately identify the real names, nicknames, or roles of different speakers (tagged in SPEAKER_XX format) in a podcast episode, based on the provided metadata, episode information, dialogue snippets, and speech patterns. Your analysis should NOT rely on the order of speakers or speaker IDs."""
 
     user_prompt_template = f"""
 Contextual Information:
@@ -227,45 +169,49 @@ Contextual Information:
         ```
         (Pay close attention to any host names, guest names, positions, or social media handles mentioned in the Shownotes.)
 
-3.  **Speakers to Identify and Their Dialogue Samples**:
+3.  **Speakers to Identify and Their Information**:
     ```json
     {json.dumps(speaker_info_for_prompt, ensure_ascii=False, indent=2)}
     ```
-    (Dialogue samples may contain self-introductions, how speakers address each other, or discussions related to their identities.)
+    (Analyze dialogue samples and speech statistics to understand speaker roles and identities. DO NOT use speaker IDs to determine roles - SPEAKER_00 is not necessarily the host.)
 
 Task:
 Based on all the information above, assign the most accurate name or role to each "speaker_id".
 
+Analysis Guidance:
+* A host typically has more frequent, shorter segments, often introduces the show or guests, and may mention the podcast name
+* In panel discussion formats, there might be multiple hosts or co-hosts of similar speaking patterns
+* In interview formats, the host typically asks questions while guests give longer answers
+* Speakers who make introductory statements or welcome listeners are likely hosts
+* Use dialogue content (not just speaking patterns) to identify names and roles
+
 Output Requirements and Guidelines:
 *   Please return the result strictly in JSON format. The keys of the JSON object should be the original "speaker_id" (e.g., "SPEAKER_00"), and the values should be the identified person's name or role (string type).
-*   **Prioritize Specific Names/Nicknames**: If there is sufficient information (e.g., guests explicitly listed in Shownotes, or names mentioned in dialogue), please use the identified specific names, such as "John Doe", "AI Assistant", "Dr. Evelyn Reed".
+*   **Prioritize Specific Names/Nicknames**: If there is sufficient information (e.g., guests explicitly listed in Shownotes, or names mentioned in dialogue), please use the identified specific names, such as "John Doe", "AI Assistant", "Dr. Evelyn Reed". Do NOT append roles like "(Host)" or "(Guest)" if a specific name is found.
 *   **Host Identification**:
-    *   The podcast author (if provided and credible) is often the host.
-    *   Identify roles explicitly stated as "host", "presenter", etc., in the dialogue or Shownotes.
-    *   If a host's name is identified, you can use formats like: "[Identified Name] (Host)" or "Host [Identified Name]".
-    *   If the name cannot be determined but the role is clearly a host, use "Podcast Host".
+    *   Hosts may be identified by analyzing speech patterns - they often speak more frequently in shorter segments
+    *   Look for introduction patterns in dialogue where speakers welcome listeners or introduce the show
+    *   The podcast author (if provided and credible) is often a host but verify through dialogue
+    *   There may be multiple hosts (co-hosts) in panel-style podcasts
+    *   If a host's name is identified, use the identified name directly (e.g., "Lex Fridman"). Do not append "(Host)".
+    *   If the host's name cannot be determined but the role is clearly a host, use "Podcast Host".
 *   **Guest Identification**:
-    *   For other non-host speakers, if specific names cannot be identified, label them sequentially as "Guest 1", "Guest 2", etc.
-    *   If a guest's name is identified, you can use formats like: "[Identified Name] (Guest)".
-*   **Handling Multiple Hosts/Guests**: If there are multiple hosts or guests and they can be distinguished, name them accordingly. If you cannot distinguish specific identities but know there are multiple hosts, you can use "Host 1", "Host 2".
-*   **Insufficient Information**: If there is too little information for a particular "speaker_id" to make an informed judgment, conservatively use "Unknown Speaker" or determine if they are likely "Podcast Host" or "Guest" based on context.
-*   **Ensure Completeness**: The returned JSON object must include all "speaker_id"s listed in "Speakers to Identify and Their Dialogue Samples" as keys.
+    *   Guests often give longer responses and speak less frequently than hosts
+    *   For other non-host speakers, if a specific name is identified, use the identified name directly (e.g., "John Carmack"). Do not append "(Guest)".
+    *   If specific names cannot be identified for guests, label them sequentially as "Guest 1", "Guest 2", etc.
+*   **Handling Multiple Hosts/Guests**: If there are multiple hosts or guests and they can be distinguished by name, use their names. If you cannot distinguish specific identities but know there are multiple hosts, use "Host 1", "Host 2", etc. Similarly for guests without specific names, use "Guest 1", "Guest 2".
+*   **Ensure Completeness**: The returned JSON object must include all "speaker_id"s listed in the input as keys.
 
 JSON Output Example:
 ```json
 {{
-  "SPEAKER_00": "John Doe (Host)",
-  "SPEAKER_01": "Jane Smith (Guest)",
-  "SPEAKER_02": "Alex Green (Guest 2)"
+  "SPEAKER_00": "Jane Smith",
+  "SPEAKER_01": "Podcast Host",
+  "SPEAKER_02": "Alex Green"
 }}
 ```
-Or, in cases with very limited information:
-```json
-{{
-  "SPEAKER_00": "Podcast Host",
-  "SPEAKER_01": "Guest 1"
-}}
-```
+Note that in this example, SPEAKER_01 is identified as the host, not SPEAKER_00, based on content analysis, not ID order.
+
 Please begin your analysis and provide the JSON result.
 """
 
@@ -274,29 +220,52 @@ Please begin your analysis and provide the JSON result.
         {"role": "user", "content": user_prompt_template}
     ]
 
+    # 预设默认映射，使用更智能的启发式方法而不是简单依赖顺序
     final_map = {}
-    # 预先填充默认值，以防LLM调用失败或返回不完整
-    is_host_assigned_default = False
-    guest_counter_default = 1
-    for spk_id in unique_speaker_ids:
-        if not is_host_assigned_default:
-            final_map[spk_id] = "Podcast Host" # 默认第一个是主持人
-            is_host_assigned_default = True
+    
+    # 尝试使用说话模式启发式方法来初步识别角色
+    # 1. 说话次数最多的可能是主持人
+    # 2. 有介绍性话语的可能是主持人
+    # 3. 其他角色先标记为嘉宾
+    
+    host_candidates = []
+    for speaker_id, stats in speaker_stats.items():
+        if stats["intro_likely"]:
+            host_candidates.append((speaker_id, 2))  # 优先级2：有介绍性话语
         else:
-            final_map[spk_id] = f"Guest {guest_counter_default}"
-            guest_counter_default += 1
+            # 按说话次数排序
+            host_candidates.append((speaker_id, stats["total_segments"]))
+    
+    # 按可能性排序（介绍性话语 > 说话次数）
+    host_candidates.sort(key=lambda x: (-1 if x[1] == 2 else 0, x[1]), reverse=True)
+    
+    if host_candidates:
+        # 最可能的主持人
+        host_id = host_candidates[0][0]
+        final_map[host_id] = "Podcast Host"
+        
+        # 其他人先标为嘉宾
+        guest_counter = 1
+        for speaker_id in unique_speaker_ids:
+            if speaker_id != host_id:
+                final_map[speaker_id] = f"Guest {guest_counter}"
+                guest_counter += 1
+    else:
+        # 如果没有明显线索，使用传统的顺序方法作为备选
+        is_host_assigned = False
+        guest_counter = 1
+        for speaker_id in unique_speaker_ids:
+            if not is_host_assigned:
+                final_map[speaker_id] = "Podcast Host"
+                is_host_assigned = True
+            else:
+                final_map[speaker_id] = f"Guest {guest_counter}"
+                guest_counter += 1
             
     try:
-        # print("---- Sending to LLM ----")
-        # print(f"System Prompt: {system_prompt}")
-        # print(f"User Prompt: {user_prompt_template}")
-        # print("-------------------------")
-        
-        response = llm_client.create(messages=messages, temperature=0.1, max_tokens=1024) # 低温以获得更确定的JSON输出
+        response = llm_client.create(messages=messages, temperature=0.1, max_tokens=1024)
         assistant_response_content = response["choices"][0]["message"]["content"]
         
-        # print(f"---- LLM Raw Response ----\n{assistant_response_content}\n-------------------------")
-
         parsed_llm_output = None
         # 尝试从Markdown代码块中提取JSON
         json_match = re.search(r'```json\s*(\{.*?\})\s*```', assistant_response_content, re.DOTALL)
@@ -322,72 +291,42 @@ Please begin your analysis and provide the JSON result.
             # parsed_llm_output 保持为 None，将使用默认值
 
         if parsed_llm_output:
-            # 用LLM的有效输出来更新 final_map
-            # 同时检查LLM是否包含了所有speaker_id
-            temp_host_assigned = False
-            temp_guest_counter = 1
+            # 直接使用LLM的有效输出，不再依赖预设的角色分配逻辑
+            final_map = {}
+            unknown_counter = 1
             
-            processed_ids_from_llm = set()
-
-            for spk_id in unique_speaker_ids: # 遍历我们期望的ID
+            # 先处理LLM识别出的角色
+            for spk_id in unique_speaker_ids:
                 if spk_id in parsed_llm_output and isinstance(parsed_llm_output[spk_id], str) and parsed_llm_output[spk_id].strip():
                     final_map[spk_id] = parsed_llm_output[spk_id].strip()
-                    processed_ids_from_llm.add(spk_id)
-                    if "主持人" in final_map[spk_id] or "Host" in final_map[spk_id]:
-                        temp_host_assigned = True
-                # else: # 如果LLM输出中缺少某个ID，或值无效，则保留final_map中的默认值
-
-            # 对于LLM输出中存在但我们未在unique_speaker_ids中跟踪的ID（不太可能发生，但为了健壮性）
-            # 或者，如果LLM返回的ID少于unique_speaker_ids，则需要补充
-            # 这里的逻辑是：以unique_speaker_ids为准，用LLM结果填充，不足的保留默认值
-
-            # 重新检查并分配 "Host" 和 "Guest N" 如果LLM的命名不清晰
-            # 这个阶段，final_map 已经混合了 LLM 的输出和一些初始默认值
-            # 我们需要确保至少有一个Host，并且Guest编号正确
+                else:
+                    # 如果LLM没有给出特定ID的结果，使用"Unknown Speaker"
+                    final_map[spk_id] = f"Unknown Speaker {unknown_counter}"
+                    unknown_counter += 1
             
-            current_names = list(final_map[spk_id] for spk_id in unique_speaker_ids) # 按原始顺序获取名称
+            # 检查是否有"Host"或"主持人"标识
+            has_host = any("主持人" in name or "Host" in name for name in final_map.values())
             
-            has_host_role = any("主持人" in name or "Host" in name for name in current_names)
-            
-            # 如果LLM的命名中没有明确的Host，但我们之前默认分配了一个，可能需要调整
-            # 或者，如果LLM将所有人都命名了但没有Host，选择一个作为Host
-            
-            final_updated_map = {}
-            guest_idx_refill = 1
-            host_assigned_refill = False
-
-            # 优先保留LLM识别出的具体名字和角色
-            for spk_id in unique_speaker_ids:
-                name_from_llm = final_map.get(spk_id) # 这是混合了LLM和初始默认的
+            # 如果没有任何主持人标识，且存在"Unknown Speaker"，可以考虑将最活跃的未知说话人设为主持人
+            if not has_host and any("Unknown Speaker" in name for name in final_map.values()):
+                # 找出最活跃的未知说话人
+                most_active_unknown = None
+                max_segments = 0
                 
-                is_generic_guest = re.match(r"Guest \\d+", name_from_llm) or name_from_llm == "Guest"
-                is_generic_host = name_from_llm == "Podcast Host"
-
-                if "主持人" in name_from_llm or "Host" in name_from_llm:
-                    final_updated_map[spk_id] = name_from_llm
-                    host_assigned_refill = True
-                elif not is_generic_guest and not is_generic_host and name_from_llm.strip() != "UNKNOWN": # 具体名字
-                    final_updated_map[spk_id] = name_from_llm
-                # 对于其他情况（LLM未提供，或提供了通用占位符），我们将重新分配
-            
-            # 重新分配那些没有被LLM赋予明确角色的
-            for spk_id in unique_speaker_ids:
-                if spk_id not in final_updated_map: # 如果还没被上面逻辑处理
-                    if not host_assigned_refill:
-                        final_updated_map[spk_id] = "Podcast Host"
-                        host_assigned_refill = True
-                    else:
-                        final_updated_map[spk_id] = f"Guest {guest_idx_refill}"
-                        guest_idx_refill +=1
-            final_map = final_updated_map
-
-        # print(f"---- Speaker Name Map (final) ----\n{json.dumps(final_map, ensure_ascii=False, indent=2)}\n-------------------------------")
+                for spk_id, name in final_map.items():
+                    if "Unknown Speaker" in name and spk_id in speaker_stats:
+                        if speaker_stats[spk_id]["total_segments"] > max_segments:
+                            max_segments = speaker_stats[spk_id]["total_segments"]
+                            most_active_unknown = spk_id
+                
+                if most_active_unknown:
+                    final_map[most_active_unknown] = "Podcast Host"
+        
         return final_map
 
     except Exception as e:
         import traceback
         print(f"调用LLM或处理响应时发生严重错误: {e}")
         print(traceback.format_exc())
-        # 发生任何严重错误，返回初始的默认映射
-        # final_map 此时应该已经是初始的默认映射
+        # 发生任何严重错误，返回初始的启发式映射
         return final_map

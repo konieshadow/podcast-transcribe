@@ -10,6 +10,7 @@ class EnhancedSegment:
     text: str  # 转录的文本
     speaker: str  # 说话人ID
     language: str  # 检测到的语言
+    speaker_name: Optional[str] = None  # 识别出的说话人名称
 
 
 @dataclass
