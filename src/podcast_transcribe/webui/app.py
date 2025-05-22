@@ -267,6 +267,16 @@ def load_episode_audio(selected_episode_index: int, podcast_data: PodcastChannel
             transcribe_button: gr.update(interactive=False)
         }
 
+def disable_buttons_before_transcription(local_audio_file_path: str):
+    """在开始转录前禁用按钮"""
+    print("禁用界面按钮以防止转录期间的交互")
+    return {
+        parse_button: gr.update(interactive=False),
+        episode_dropdown: gr.update(interactive=False),
+        transcribe_button: gr.update(interactive=False),
+        status_message_area: gr.update(value="开始转录过程，请耐心等待...")
+    }
+
 def start_transcription(local_audio_file_path: str, progress=gr.Progress(track_tqdm=True)):
     """回调函数：开始转录当前加载的音频"""
     print(f"开始转录本地音频文件: {local_audio_file_path}")
@@ -275,11 +285,14 @@ def start_transcription(local_audio_file_path: str, progress=gr.Progress(track_t
         print("没有可用的本地音频文件")
         return {
             transcription_output_df: gr.update(value=None),
-            status_message_area: gr.update(value="错误：没有有效的音频文件用于转录。请先选择一个剧集。")
+            status_message_area: gr.update(value="错误：没有有效的音频文件用于转录。请先选择一个剧集。"),
+            parse_button: gr.update(interactive=True),
+            episode_dropdown: gr.update(interactive=True),
+            transcribe_button: gr.update(interactive=True)
         }
 
     try:
-        # 先更新状态消息
+        # 先更新状态消息并禁用按钮
         progress(0, desc="初始化转录过程...")
         
         # 使用progress回调来更新进度
@@ -293,7 +306,7 @@ def start_transcription(local_audio_file_path: str, progress=gr.Progress(track_t
         
         # 调用转录函数
         print("开始转录音频...")
-        result: CombinedTranscriptionResult = transcribe_audio(audio_segment)
+        result: CombinedTranscriptionResult = transcribe_audio(audio_segment, device="mps", segmentation_batch_size=64, parallel=True)
         print(f"转录完成，结果: {result is not None}, 段落数: {len(result.segments) if result and result.segments else 0}")
         progress(0.9, desc="转录完成，正在格式化结果...")
         
@@ -306,19 +319,28 @@ def start_transcription(local_audio_file_path: str, progress=gr.Progress(track_t
             progress(1.0, desc="转录结果已生成!")
             return {
                 transcription_output_df: gr.update(value=formatted_segments),
-                status_message_area: gr.update(value=f"转录完成！共 {len(result.segments)} 个片段。检测到 {result.num_speakers} 个说话人。")
+                status_message_area: gr.update(value=f"转录完成！共 {len(result.segments)} 个片段。检测到 {result.num_speakers} 个说话人。"),
+                parse_button: gr.update(interactive=True),
+                episode_dropdown: gr.update(interactive=True),
+                transcribe_button: gr.update(interactive=True)
             }
         elif result: # 有 result 但没有 segments
             progress(1.0, desc="转录完成，但无文本片段")
             return {
                 transcription_output_df: gr.update(value=None),
-                status_message_area: gr.update(value="转录完成，但未生成任何文本片段。")
+                status_message_area: gr.update(value="转录完成，但未生成任何文本片段。"),
+                parse_button: gr.update(interactive=True),
+                episode_dropdown: gr.update(interactive=True),
+                transcribe_button: gr.update(interactive=True)
             }
         else: # result 为 None
             progress(1.0, desc="转录失败")
             return {
                 transcription_output_df: gr.update(value=None),
-                status_message_area: gr.update(value="转录失败，未能获取结果。")
+                status_message_area: gr.update(value="转录失败，未能获取结果。"),
+                parse_button: gr.update(interactive=True),
+                episode_dropdown: gr.update(interactive=True),
+                transcribe_button: gr.update(interactive=True)
             }
     except Exception as e:
         print(f"转录过程中发生错误: {e}")
@@ -326,7 +348,10 @@ def start_transcription(local_audio_file_path: str, progress=gr.Progress(track_t
         progress(1.0, desc="转录失败: 处理错误")
         return {
             transcription_output_df: gr.update(value=None),
-            status_message_area: gr.update(value=f"转录过程中发生严重错误: {e}")
+            status_message_area: gr.update(value=f"转录过程中发生严重错误: {e}"),
+            parse_button: gr.update(interactive=True),
+            episode_dropdown: gr.update(interactive=True),
+            transcribe_button: gr.update(interactive=True)
         }
 
 # --- Gradio 界面定义 ---
@@ -421,10 +446,15 @@ with gr.Blocks(title="播客转录工具 v2", css="""
         ]
     )
 
+    # 首先禁用按钮，然后执行转录
     transcribe_button.click(
+        fn=disable_buttons_before_transcription,
+        inputs=[local_audio_file_path],
+        outputs=[parse_button, episode_dropdown, transcribe_button, status_message_area]
+    ).then(
         fn=start_transcription,
         inputs=[local_audio_file_path],
-        outputs=[transcription_output_df, status_message_area]
+        outputs=[transcription_output_df, status_message_area, parse_button, episode_dropdown, transcribe_button]
     )
 
 if __name__ == "__main__":
