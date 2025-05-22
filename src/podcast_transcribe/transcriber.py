@@ -417,9 +417,13 @@ class CombinedTranscriber:
         # 1. 先执行基础转录流程
         transcription_result = self.transcribe(audio)
         
-        # 2. 如果没有提供播客和剧集信息，或者没有提供LLM客户端，直接返回基础转录结果
-        if not podcast_info or not llm_client:
-            logger.info("未提供播客信息或LLM客户端，无法识别说话人名称")
+        # 2. 分别判断播客信息和LLM客户端是否提供
+        if not podcast_info:
+            logger.info("未提供播客信息，无法识别说话人名称")
+            return transcription_result
+            
+        if not llm_client:
+            logger.info("未提供LLM客户端，无法识别说话人名称")
             return transcription_result
         
         # 3. 识别说话人名称

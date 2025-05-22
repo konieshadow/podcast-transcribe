@@ -13,7 +13,7 @@ import shutil
 try:
     from podcast_transcribe.rss.podcast_rss_parser import parse_podcast_rss
     from podcast_transcribe.schemas import PodcastChannel, PodcastEpisode, CombinedTranscriptionResult, EnhancedSegment
-    from podcast_transcribe.transcriber import transcribe_audio
+    from podcast_transcribe.transcriber import transcribe_podcast_audio
 except ImportError:
     # 如果直接运行此脚本，并且项目根目录不在PYTHONPATH中，
     # 则需要将项目根目录添加到 sys.path
@@ -31,7 +31,7 @@ except ImportError:
     
     from podcast_transcribe.rss.podcast_rss_parser import parse_podcast_rss
     from podcast_transcribe.schemas import PodcastChannel, PodcastEpisode, CombinedTranscriptionResult, EnhancedSegment
-    from podcast_transcribe.transcriber import transcribe_audio
+    from podcast_transcribe.transcriber import transcribe_podcast_audio
 
 # 用于存储应用程序使用的所有临时文件路径
 temp_files = []
@@ -68,7 +68,8 @@ def parse_rss_feed(rss_url: str):
             audio_player: gr.update(value=None),
             current_audio_url_state: None,
             transcription_output_df: gr.update(value=None, headers=["说话人", "文本", "时间"]),
-            transcribe_button: gr.update(interactive=False)
+            transcribe_button: gr.update(interactive=False),
+            selected_episode_index_state: None
         }
     
     try:
@@ -95,7 +96,8 @@ def parse_rss_feed(rss_url: str):
                 audio_player: gr.update(value=None),
                 current_audio_url_state: None,
                 transcription_output_df: gr.update(value=None),
-                transcribe_button: gr.update(interactive=False)
+                transcribe_button: gr.update(interactive=False),
+                selected_episode_index_state: None
             }
         elif podcast_data: # 有 channel 信息但没有 episodes
             print("解析成功但未找到剧集")
@@ -106,7 +108,8 @@ def parse_rss_feed(rss_url: str):
                 audio_player: gr.update(value=None),
                 current_audio_url_state: None,
                 transcription_output_df: gr.update(value=None),
-                transcribe_button: gr.update(interactive=False)
+                transcribe_button: gr.update(interactive=False),
+                selected_episode_index_state: None
             }
         else:
             print(f"解析RSS失败: {rss_url}")
@@ -117,7 +120,8 @@ def parse_rss_feed(rss_url: str):
                 audio_player: gr.update(value=None),
                 current_audio_url_state: None,
                 transcription_output_df: gr.update(value=None),
-                transcribe_button: gr.update(interactive=False)
+                transcribe_button: gr.update(interactive=False),
+                selected_episode_index_state: None
             }
     except Exception as e:
         print(f"解析 RSS 时发生错误: {e}")
@@ -129,7 +133,8 @@ def parse_rss_feed(rss_url: str):
             audio_player: gr.update(value=None),
             current_audio_url_state: None,
             transcription_output_df: gr.update(value=None),
-            transcribe_button: gr.update(interactive=False)
+            transcribe_button: gr.update(interactive=False),
+            selected_episode_index_state: None
         }
 
 def load_episode_audio(selected_episode_index: int, podcast_data: PodcastChannel):
@@ -145,7 +150,8 @@ def load_episode_audio(selected_episode_index: int, podcast_data: PodcastChannel
             status_message_area: gr.update(value="请先解析 RSS 并选择一个剧集。"),
             transcription_output_df: gr.update(value=None),
             local_audio_file_path: None,
-            transcribe_button: gr.update(interactive=False)
+            transcribe_button: gr.update(interactive=False),
+            selected_episode_index_state: None
         }
 
     try:
@@ -222,7 +228,8 @@ def load_episode_audio(selected_episode_index: int, podcast_data: PodcastChannel
                     status_message_area: gr.update(value=f"已加载剧集: {episode.title or '无标题'}。"),
                     transcription_output_df: gr.update(value=None),
                     local_audio_file_path: temp_filepath,
-                    transcribe_button: gr.update(interactive=True)
+                    transcribe_button: gr.update(interactive=True),
+                    selected_episode_index_state: selected_episode_index
                 }
             except requests.exceptions.RequestException as e:
                 print(f"下载音频失败: {e}")
@@ -233,7 +240,8 @@ def load_episode_audio(selected_episode_index: int, podcast_data: PodcastChannel
                     status_message_area: gr.update(value=f"错误：下载音频失败: {e}"),
                     transcription_output_df: gr.update(value=None),
                     local_audio_file_path: None,
-                    transcribe_button: gr.update(interactive=False)
+                    transcribe_button: gr.update(interactive=False),
+                    selected_episode_index_state: None
                 }
         else:
             print(f"剧集 '{episode.title}' 缺少有效的音频URL")
@@ -243,7 +251,8 @@ def load_episode_audio(selected_episode_index: int, podcast_data: PodcastChannel
                 status_message_area: gr.update(value=f"错误：选中的剧集 '{episode.title}' 没有提供有效的音频URL。"),
                 transcription_output_df: gr.update(value=None),
                 local_audio_file_path: None,
-                transcribe_button: gr.update(interactive=False)
+                transcribe_button: gr.update(interactive=False),
+                selected_episode_index_state: None
             }
     except IndexError:
         print(f"无效的剧集索引: {selected_episode_index}")
@@ -253,7 +262,8 @@ def load_episode_audio(selected_episode_index: int, podcast_data: PodcastChannel
             status_message_area: gr.update(value="错误：选择的剧集索引无效。"),
             transcription_output_df: gr.update(value=None),
             local_audio_file_path: None,
-            transcribe_button: gr.update(interactive=False)
+            transcribe_button: gr.update(interactive=False),
+            selected_episode_index_state: None
         }
     except Exception as e:
         print(f"加载音频时发生错误: {e}")
@@ -264,7 +274,8 @@ def load_episode_audio(selected_episode_index: int, podcast_data: PodcastChannel
             status_message_area: gr.update(value=f"加载音频时发生严重错误: {e}"),
             transcription_output_df: gr.update(value=None),
             local_audio_file_path: None,
-            transcribe_button: gr.update(interactive=False)
+            transcribe_button: gr.update(interactive=False),
+            selected_episode_index_state: None
         }
 
 def disable_buttons_before_transcription(local_audio_file_path: str):
@@ -277,9 +288,9 @@ def disable_buttons_before_transcription(local_audio_file_path: str):
         status_message_area: gr.update(value="开始转录过程，请耐心等待...")
     }
 
-def start_transcription(local_audio_file_path: str, progress=gr.Progress(track_tqdm=True)):
+def start_transcription(local_audio_file_path: str, podcast_data: PodcastChannel, selected_episode_index: int, progress=gr.Progress(track_tqdm=True)):
     """回调函数：开始转录当前加载的音频"""
-    print(f"开始转录本地音频文件: {local_audio_file_path}")
+    print(f"开始转录本地音频文件: {local_audio_file_path}, 选中剧集索引: {selected_episode_index}")
     
     if not local_audio_file_path or not os.path.exists(local_audio_file_path):
         print("没有可用的本地音频文件")
@@ -304,9 +315,21 @@ def start_transcription(local_audio_file_path: str, progress=gr.Progress(track_t
             
         progress(0.4, desc="音频加载完成，开始转录 (此过程可能需要较长时间)...")
         
+        # 获取当前选中的剧集信息
+        episode_info = None
+        if podcast_data and podcast_data.episodes and selected_episode_index is not None:
+            if 0 <= selected_episode_index < len(podcast_data.episodes):
+                episode_info = podcast_data.episodes[selected_episode_index]
+                print(f"获取到当前选中剧集信息: {episode_info.title if episode_info else '无'}")
+        
         # 调用转录函数
         print("开始转录音频...")
-        result: CombinedTranscriptionResult = transcribe_audio(audio_segment, device="mps", segmentation_batch_size=64, parallel=True)
+        result: CombinedTranscriptionResult = transcribe_podcast_audio(audio_segment,
+                                                                       podcast_info=podcast_data,
+                                                                       episode_info=episode_info,
+                                                                       device="mps",
+                                                                       segmentation_batch_size=64,
+                                                                       parallel=True)
         print(f"转录完成，结果: {result is not None}, 段落数: {len(result.segments) if result and result.segments else 0}")
         progress(0.9, desc="转录完成，正在格式化结果...")
         
@@ -314,7 +337,7 @@ def start_transcription(local_audio_file_path: str, progress=gr.Progress(track_t
             formatted_segments = []
             for seg in result.segments:
                 time_str = f"{seg.start:.2f}s - {seg.end:.2f}s"
-                formatted_segments.append([seg.speaker, seg.text, time_str])
+                formatted_segments.append([seg.speaker, seg.speaker_name, seg.text, time_str])
             
             progress(1.0, desc="转录结果已生成!")
             return {
@@ -377,6 +400,7 @@ with gr.Blocks(title="播客转录工具 v2", css="""
     podcast_data_state = gr.State(None) # 存储解析后的 PodcastChannel 对象
     current_audio_url_state = gr.State(None) # 存储当前选中剧集的音频URL
     local_audio_file_path = gr.State(None) # 存储下载到本地的音频文件路径
+    selected_episode_index_state = gr.State(None) # 存储当前选中的剧集索引
 
     with gr.Row():
         rss_url_input = gr.Textbox(
@@ -410,11 +434,11 @@ with gr.Blocks(title="播客转录工具 v2", css="""
     
     gr.Markdown("## 📝 转录结果")
     transcription_output_df = gr.DataFrame(
-        headers=["说话人", "转录文本", "起止时间"], 
+        headers=["说话人ID", "说话人名称", "转录文本", "起止时间"], 
         interactive=False,
         wrap=True, # 允许文本换行
         row_count=(10, "dynamic"), # 显示10行，可滚动
-        col_count=(3, "fixed"),
+        col_count=(4, "fixed"),
         elem_id="transcription-output"
     )
 
@@ -429,7 +453,8 @@ with gr.Blocks(title="播客转录工具 v2", css="""
             audio_player, 
             current_audio_url_state, 
             transcription_output_df,
-            transcribe_button
+            transcribe_button,
+            selected_episode_index_state
         ]
     )
 
@@ -442,7 +467,8 @@ with gr.Blocks(title="播客转录工具 v2", css="""
             status_message_area, 
             transcription_output_df,
             local_audio_file_path,
-            transcribe_button
+            transcribe_button,
+            selected_episode_index_state
         ]
     )
 
@@ -453,7 +479,7 @@ with gr.Blocks(title="播客转录工具 v2", css="""
         outputs=[parse_button, episode_dropdown, transcribe_button, status_message_area]
     ).then(
         fn=start_transcription,
-        inputs=[local_audio_file_path],
+        inputs=[local_audio_file_path, podcast_data_state, selected_episode_index_state],
         outputs=[transcription_output_df, status_message_area, parse_button, episode_dropdown, transcribe_button]
     )
 

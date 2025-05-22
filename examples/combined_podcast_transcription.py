@@ -70,6 +70,7 @@ def main():
                              hf_token=hf_token,
                              asr_model_name=asr_model_name,
                              diarization_model_name=diarization_model_name,
+                             llm_model_name=llm_model_path,
                              device=device,
                              segmentation_batch_size=segmentation_batch_size,
                              parallel=parallel,
