@@ -29,6 +29,7 @@ class CombinedTranscriber:
         hf_token: Optional[str] = None,
         device: str = "cpu",
         segmentation_batch_size: int = 64,
+        parallel: bool = False,
     ):
         """
         初始化转录器
@@ -39,14 +40,16 @@ class CombinedTranscriber:
             hf_token: Hugging Face令牌
             device: 推理设备，'cpu'或'cuda'
             segmentation_batch_size: 分割批处理大小，默认为64
+            parallel: 是否并行执行ASR和说话人分离，默认为False
         """
         self.asr_model_name = asr_model_name
         self.diarization_model_name = diarization_model_name
         self.hf_token = hf_token or os.environ.get("HF_TOKEN")
         self.device = device
         self.segmentation_batch_size = segmentation_batch_size
+        self.parallel = parallel
         
-        logger.info(f"初始化组合转录器，ASR模型: {asr_model_name}，分离模型: {diarization_model_name}，分割批处理大小: {segmentation_batch_size}")
+        logger.info(f"初始化组合转录器，ASR模型: {asr_model_name}，分离模型: {diarization_model_name}，分割批处理大小: {segmentation_batch_size}，并行执行: {parallel}")
         
         self.asr_model = None
         self.diarization_model = None
@@ -111,6 +114,18 @@ class CombinedTranscriber:
         
         return merged_segments
 
+    def _run_asr(self, audio: AudioSegment) -> TranscriptionResult:
+        """执行ASR处理"""
+        self._load_asr_model()
+        logger.debug("执行ASR...")
+        return self.asr_model.transcribe(audio)
+        
+    def _run_diarization(self, audio: AudioSegment) -> DiarizationResult:
+        """执行说话人分离处理"""
+        self._load_diarization_model()
+        logger.debug("执行说话人分离...")
+        return self.diarization_model.diarize(audio)
+
     def transcribe(self, audio: AudioSegment) -> CombinedTranscriptionResult:
         """
         转录整个音频 (新的非流式逻辑将在这里实现)
@@ -122,26 +137,34 @@ class CombinedTranscriber:
             包含完整转录和说话人信息的结果
         """
         logger.info(f"开始转录 {len(audio)/1000:.2f} 秒的音频 (非流式)")
-        # self._load_models() # 旧的加载方式移除
 
-        # 步骤1: 对整个音频执行ASR
-        self._load_asr_model() # 按需加载ASR模型
-        logger.debug("执行ASR...")
-        asr_result: TranscriptionResult = self.asr_model.transcribe(audio)
-        logger.debug(f"ASR完成，识别语言: {asr_result.language}，得到 {len(asr_result.segments)} 个分段")
+        if self.parallel:
+            # 并行执行ASR和说话人分离
+            logger.info("并行执行ASR和说话人分离")
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                asr_future = executor.submit(self._run_asr, audio)
+                diarization_future = executor.submit(self._run_diarization, audio)
+                
+                asr_result: TranscriptionResult = asr_future.result()
+                diarization_result: DiarizationResult = diarization_future.result()
+                
+            logger.debug(f"ASR完成，识别语言: {asr_result.language}，得到 {len(asr_result.segments)} 个分段")
+            logger.debug(f"说话人分离完成，得到 {len(diarization_result.segments)} 个说话人分段，检测到 {diarization_result.num_speakers} 个说话人")
+        else:
+            # 顺序执行ASR和说话人分离
+            # 步骤1: 对整个音频执行ASR
+            self._load_asr_model() # 按需加载ASR模型
+            logger.debug("执行ASR...")
+            asr_result: TranscriptionResult = self.asr_model.transcribe(audio)
+            logger.debug(f"ASR完成，识别语言: {asr_result.language}，得到 {len(asr_result.segments)} 个分段")
 
-        # 步骤2: 对整个音频执行说话人分离
-        self._load_diarization_model() # 按需加载说话人分离模型
-        logger.debug("执行说话人分离...")
-        diarization_result: DiarizationResult = self.diarization_model.diarize(audio)
-        logger.debug(f"说话人分离完成，得到 {len(diarization_result.segments)} 个说话人分段，检测到 {diarization_result.num_speakers} 个说话人")
+            # 步骤2: 对整个音频执行说话人分离
+            self._load_diarization_model() # 按需加载说话人分离模型
+            logger.debug("执行说话人分离...")
+            diarization_result: DiarizationResult = self.diarization_model.diarize(audio)
+            logger.debug(f"说话人分离完成，得到 {len(diarization_result.segments)} 个说话人分段，检测到 {diarization_result.num_speakers} 个说话人")
         
-        # 步骤3: 创建增强分段 (核心逻辑，将包含分裂和分配)
-        # enhanced_segments = self._create_enhanced_segments(asr_result.segments, diarization_result.segments, asr_result.language)
-        # (占位，将在下一步实现 _create_enhanced_segments)
-        # 暂时使用旧的 _assign_speakers_to_segments 作为占位符，如果它还存在的话，或者一个空列表
-        # 我们将直接在这里实现新的分配和分裂逻辑，或者调用一个新的辅助方法
-        
+        # 步骤3: 创建增强分段
         all_enhanced_segments: List[EnhancedSegment] = self._create_enhanced_segments_with_splitting(
             asr_result.segments, 
             diarization_result.segments, 
@@ -376,6 +399,7 @@ def transcribe_audio(
     hf_token: Optional[str] = None,
     device: str = "cpu",
     segmentation_batch_size: int = 64,
+    parallel: bool = False,
 ) -> CombinedTranscriptionResult: # 返回类型固定为 CombinedTranscriptionResult
     """
     整合ASR和说话人分离的音频转录函数 (仅支持非流式)
@@ -387,6 +411,7 @@ def transcribe_audio(
         hf_token: Hugging Face令牌
         device: 推理设备，'cpu'或'cuda'
         segmentation_batch_size: 分割批处理大小，默认为64
+        parallel: 是否并行执行ASR和说话人分离，默认为False
         
     返回:
         完整转录结果
@@ -398,7 +423,8 @@ def transcribe_audio(
         diarization_model_name=diarization_model_name,
         hf_token=hf_token,
         device=device,
-        segmentation_batch_size=segmentation_batch_size
+        segmentation_batch_size=segmentation_batch_size,
+        parallel=parallel
     )
     
     # 直接调用 transcribe 方法

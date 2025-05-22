@@ -21,19 +21,17 @@ from src.podcast_transcribe.transcriber import transcribe_audio
 
 def main():
     """主函数"""
-    audio_file = Path.joinpath(Path(__file__).parent, "input", "lex_ai_john_carmack_1.wav")  # 播客音频文件路径
-    # audio_file = "/Users/konie/Desktop/voices/lex_ai_john_carmack_30.wav"
+    # audio_file = Path.joinpath(Path(__file__).parent, "input", "lex_ai_john_carmack_1.wav")  # 播客音频文件路径
+    audio_file = Path("/Users/konie/Desktop/voices/lex_ai_john_carmack_30.wav")
     
     # 模型配置
     asr_model_name = "mlx-community/parakeet-tdt-0.6b-v2"  # ASR模型名称
     diarization_model_name = "pyannote/speaker-diarization-3.1"  # 说话人分离模型名称
     hf_token = "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"  # Hugging Face API 令牌
     device = "mps"  # 设备类型
-    
-    # 处理参数
-    chunk_size_ms = 30000  # 30秒块
-    overlap_ms = 5000  # 5秒重叠
-    
+    segmentation_batch_size = 64
+    parallel = True
+
     # 检查文件是否存在
     if not os.path.exists(audio_file):
         print(f"错误：文件 '{audio_file}' 不存在")
@@ -58,6 +56,8 @@ def main():
             diarization_model_name=diarization_model_name,
             hf_token=hf_token,
             device=device,
+            segmentation_batch_size=segmentation_batch_size,
+            parallel=parallel,
         )
         
         # 输出结果
