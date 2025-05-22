@@ -28,6 +28,7 @@ class CombinedTranscriber:
         diarization_model_name: str = "pyannote/speaker-diarization-3.1",
         hf_token: Optional[str] = None,
         device: str = "cpu",
+        segmentation_batch_size: int = 64,
     ):
         """
         初始化转录器
@@ -37,13 +38,15 @@ class CombinedTranscriber:
             diarization_model_name: 说话人分离模型名称
             hf_token: Hugging Face令牌
             device: 推理设备，'cpu'或'cuda'
+            segmentation_batch_size: 分割批处理大小，默认为64
         """
         self.asr_model_name = asr_model_name
         self.diarization_model_name = diarization_model_name
         self.hf_token = hf_token or os.environ.get("HF_TOKEN")
         self.device = device
+        self.segmentation_batch_size = segmentation_batch_size
         
-        logger.info(f"初始化组合转录器，ASR模型: {asr_model_name}，分离模型: {diarization_model_name}")
+        logger.info(f"初始化组合转录器，ASR模型: {asr_model_name}，分离模型: {diarization_model_name}，分割批处理大小: {segmentation_batch_size}")
         
         self.asr_model = None
         self.diarization_model = None
@@ -61,7 +64,8 @@ class CombinedTranscriber:
             self.diarization_model = PyannoteTranscriber(
                 model_name=self.diarization_model_name,
                 token=self.hf_token,
-                device=self.device
+                device=self.device,
+                segmentation_batch_size=self.segmentation_batch_size
             )
     
     def _merge_adjacent_text_segments(self, segments: List[EnhancedSegment]) -> List[EnhancedSegment]:
@@ -371,6 +375,7 @@ def transcribe_audio(
     diarization_model_name: str = "pyannote/speaker-diarization-3.1",
     hf_token: Optional[str] = None,
     device: str = "cpu",
+    segmentation_batch_size: int = 64,
 ) -> CombinedTranscriptionResult: # 返回类型固定为 CombinedTranscriptionResult
     """
     整合ASR和说话人分离的音频转录函数 (仅支持非流式)
@@ -381,6 +386,7 @@ def transcribe_audio(
         diarization_model_name: 说话人分离模型名称
         hf_token: Hugging Face令牌
         device: 推理设备，'cpu'或'cuda'
+        segmentation_batch_size: 分割批处理大小，默认为64
         
     返回:
         完整转录结果
@@ -391,7 +397,8 @@ def transcribe_audio(
         asr_model_name=asr_model_name,
         diarization_model_name=diarization_model_name,
         hf_token=hf_token,
-        device=device
+        device=device,
+        segmentation_batch_size=segmentation_batch_size
     )
     
     # 直接调用 transcribe 方法

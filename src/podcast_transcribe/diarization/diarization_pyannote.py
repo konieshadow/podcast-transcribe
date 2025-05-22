@@ -22,6 +22,7 @@ class PyannoteTranscriber:
         model_name: str = "pyannote/speaker-diarization-3.1",
         token: Optional[str] = None,
         device: str = "cpu",
+        segmentation_batch_size: int = 32,
     ):
         """
         初始化说话人分离器
@@ -30,12 +31,14 @@ class PyannoteTranscriber:
             model_name: 模型名称
             token: Hugging Face令牌，用于访问模型
             device: 推理设备，'cpu'或'cuda'
+            segmentation_batch_size: 分割批处理大小，默认为64
         """
         self.model_name = model_name
         self.token = token or os.environ.get("HF_TOKEN")
         self.device = device
+        self.segmentation_batch_size = segmentation_batch_size
                 
-        logger.info(f"初始化说话人分离器，模型: {model_name}，设备: {device}")
+        logger.info(f"初始化说话人分离器，模型: {model_name}，设备: {device}，分割批处理大小: {segmentation_batch_size}")
         
         # 加载模型
         self._load_model()
@@ -60,6 +63,11 @@ class PyannoteTranscriber:
             
             # 设置设备
             self.pipeline.to(torch.device(self.device))
+            
+            # 设置分割批处理大小
+            if hasattr(self.pipeline, "segmentation_batch_size"):
+                logger.info(f"设置分割批处理大小: {self.segmentation_batch_size}")
+                self.pipeline.segmentation_batch_size = self.segmentation_batch_size
             
             logger.info(f"模型加载成功")
         except Exception as e:
@@ -156,9 +164,9 @@ class PyannoteTranscriber:
                     completed: Optional[int] = None,
                 ):
                     if completed is not None:
-                        logger.info(f"已处理 {step_name}: {completed:.1f} 秒 / {total:.1f} 秒 ({completed/total*100:.1f}%)")
+                        logger.info(f"处理中 {step_name}: ({completed/total*100:.1f}%)")
                     else:
-                        super().__call__(step_name, step_artifact, file, total, completed)
+                        logger.info(f"已完成 {step_name}")
 
             with CustomProgressHook() as hook:
                 diarization = self.pipeline(temp_audio_path, hook=hook)
@@ -187,6 +195,7 @@ def diarize_audio(
     model_name: str = "pyannote/speaker-diarization-3.1",
     token: Optional[str] = None,
     device: str = "cpu",
+    segmentation_batch_size: int = 32,
 ) -> DiarizationResult:
     """
     使用pyannote模型对音频进行说话人分离
@@ -196,10 +205,11 @@ def diarize_audio(
         model_name: 使用的模型名称
         token: Hugging Face令牌
         device: 推理设备，'cpu'、'cuda'、'mps'
+        segmentation_batch_size: 分割批处理大小，默认为64
         
     返回:
         DiarizationResult对象，包含分段和说话人数量
     """
     logger.info(f"调用diarize_audio函数，音频长度: {len(audio_segment)/1000:.2f}秒")
-    transcriber = PyannoteTranscriber(model_name=model_name, token=token, device=device)
+    transcriber = PyannoteTranscriber(model_name=model_name, token=token, device=device, segmentation_batch_size=segmentation_batch_size)
     return transcriber.diarize(audio_segment)

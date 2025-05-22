@@ -126,3 +126,6 @@ logs/
 
 examples/input/
 examples/output/
+
+# temp files
+_temp_*
