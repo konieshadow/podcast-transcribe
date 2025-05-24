@@ -13,14 +13,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.podcast_transcribe.audio import load_audio
-from podcast_transcribe.diarization.diarization_pyannote_mlx import diarize_audio as diarize_audio_mlx
-from podcast_transcribe.diarization.diarization_pyannote_transformers import diarize_audio as diarize_audio_transformers
+from src.podcast_transcribe.diarization.diarization_pyannote_mlx import diarize_audio as diarize_audio_mlx
+from src.podcast_transcribe.diarization.diarization_pyannote_transformers import diarize_audio as diarize_audio_transformers
 
 
 def main():
     """主函数"""
-    # audio_file = Path.joinpath(Path(__file__).parent, "input", "lex_ai_john_carmack_1.wav")  # 播客音频文件路径
-    audio_file = "/Users/konie/Desktop/voices/history_in_the_baking.mp3"  # 播客音频文件路径
+    audio_file = Path.joinpath(Path(__file__).parent, "input", "lex_ai_john_carmack_1.wav")  # 播客音频文件路径
+    # audio_file = "/Users/konie/Desktop/voices/history_in_the_baking.mp3"  # 播客音频文件路径
     model_name = "pyannote/speaker-diarization-3.1"  # 说话人分离模型名称
     hf_token = "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"  # Hugging Face API 令牌
     device = "mps"  # 设备类型
