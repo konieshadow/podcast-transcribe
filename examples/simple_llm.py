@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.podcast_transcribe.llm.llm_gemma import GemmaMLXChatCompletion
+from podcast_transcribe.llm.llm_gemma_mlx import GemmaMLXChatCompletion
 
 
 if __name__ == "__main__":

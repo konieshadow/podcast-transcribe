@@ -6,7 +6,7 @@ from datetime import datetime
 
 # Actual imports from the project structure
 from ..schemas import EnhancedSegment, PodcastChannel, PodcastEpisode
-from ..llm.llm_gemma import GemmaMLXChatCompletion
+from ..llm.llm_gemma_mlx import GemmaMLXChatCompletion
 
 
 def _clean_html(html_string: Optional[str]) -> str:

@@ -17,7 +17,7 @@ from .asr.asr_base import TranscriptionResult
 from .diarization import diarizer_router
 from .schemas import EnhancedSegment, CombinedTranscriptionResult, PodcastChannel, PodcastEpisode, DiarizationResult  # 新增导入
 from .summary.speaker_identify import recognize_speaker_names  # 新增导入
-from .llm.llm_gemma import GemmaMLXChatCompletion  # 新增导入
+from .llm.llm_gemma_mlx import GemmaMLXChatCompletion  # 新增导入
 
 # 配置日志
 logger = logging.getLogger("podcast_transcribe")

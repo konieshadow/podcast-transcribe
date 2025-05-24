@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.podcast_transcribe.transcriber import transcribe_podcast_audio
 from src.podcast_transcribe.audio import load_audio
 from src.podcast_transcribe.rss.podcast_rss_parser import parse_rss_xml_content
-from src.podcast_transcribe.llm.llm_gemma import GemmaMLXChatCompletion
+from podcast_transcribe.llm.llm_gemma_mlx import GemmaMLXChatCompletion
 from src.podcast_transcribe.schemas import EnhancedSegment, CombinedTranscriptionResult
 from src.podcast_transcribe.summary.speaker_identify import recognize_speaker_names
 
