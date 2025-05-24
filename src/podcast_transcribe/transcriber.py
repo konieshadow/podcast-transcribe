@@ -14,8 +14,8 @@ import re # 新增导入
 # 导入ASR和说话人分离模块，使用相对导入
 from .asr import asr_router
 from .asr.asr_base import TranscriptionResult
-from .diarization.diarization_pyannote_mlx import PyannoteTranscriber, DiarizationResult
-from .schemas import EnhancedSegment, CombinedTranscriptionResult, PodcastChannel, PodcastEpisode  # 新增导入
+from .diarization import diarizer_router
+from .schemas import EnhancedSegment, CombinedTranscriptionResult, PodcastChannel, PodcastEpisode, DiarizationResult  # 新增导入
 from .summary.speaker_identify import recognize_speaker_names  # 新增导入
 from .llm.llm_gemma import GemmaMLXChatCompletion  # 新增导入
 
@@ -29,6 +29,7 @@ class CombinedTranscriber:
         self,
         asr_model_name: str = "mlx-community/parakeet-tdt-0.6b-v2",
         asr_provider: str = "distil_whisper_transformers",
+        diarization_provider: str = "pyannote_mlx",
         diarization_model_name: str = "pyannote/speaker-diarization-3.1",
         hf_token: Optional[str] = None,
         device: str = "cpu",
@@ -41,6 +42,7 @@ class CombinedTranscriber:
         参数:
             asr_model_name: ASR模型名称
             asr_provider: ASR提供者名称
+            diarization_provider: 说话人分离提供者名称
             diarization_model_name: 说话人分离模型名称
             hf_token: Hugging Face令牌
             device: 推理设备，'cpu'或'cuda'
@@ -49,28 +51,18 @@ class CombinedTranscriber:
         """
         self.asr_model_name = asr_model_name
         self.asr_provider = asr_provider
+        self.diarization_provider = diarization_provider
         self.diarization_model_name = diarization_model_name
         self.hf_token = hf_token or os.environ.get("HF_TOKEN")
         self.device = device
         self.segmentation_batch_size = segmentation_batch_size
         self.parallel = parallel
         
-        logger.info(f"初始化组合转录器，ASR提供者: {asr_provider}，ASR模型: {asr_model_name}，分离模型: {diarization_model_name}，分割批处理大小: {segmentation_batch_size}，并行执行: {parallel}")
-        
-        self.diarization_model = None
+        logger.info(f"初始化组合转录器，ASR提供者: {asr_provider}，ASR模型: {asr_model_name}，分离提供者: {diarization_provider}，分离模型: {diarization_model_name}，分割批处理大小: {segmentation_batch_size}，并行执行: {parallel}")
     
 
 
-    def _load_diarization_model(self):
-        """按需加载说话人分离模型"""
-        if self.diarization_model is None:
-            logger.info("加载说话人分离模型")
-            self.diarization_model = PyannoteTranscriber(
-                model_name=self.diarization_model_name,
-                token=self.hf_token,
-                device=self.device,
-                segmentation_batch_size=self.segmentation_batch_size
-            )
+
     
     def _merge_adjacent_text_segments(self, segments: List[EnhancedSegment]) -> List[EnhancedSegment]:
         """
@@ -127,9 +119,15 @@ class CombinedTranscriber:
         
     def _run_diarization(self, audio: AudioSegment) -> DiarizationResult:
         """执行说话人分离处理"""
-        self._load_diarization_model()
         logger.debug("执行说话人分离...")
-        return self.diarization_model.diarize(audio)
+        return diarizer_router.diarize_audio(
+            audio,
+            provider=self.diarization_provider,
+            model_name=self.diarization_model_name,
+            token=self.hf_token,
+            device=self.device,
+            segmentation_batch_size=self.segmentation_batch_size
+        )
 
     def transcribe(self, audio: AudioSegment) -> CombinedTranscriptionResult:
         """
@@ -168,9 +166,15 @@ class CombinedTranscriber:
             logger.debug(f"ASR完成，识别语言: {asr_result.language}，得到 {len(asr_result.segments)} 个分段")
 
             # 步骤2: 对整个音频执行说话人分离
-            self._load_diarization_model() # 按需加载说话人分离模型
             logger.debug("执行说话人分离...")
-            diarization_result: DiarizationResult = self.diarization_model.diarize(audio)
+            diarization_result: DiarizationResult = diarizer_router.diarize_audio(
+                audio,
+                provider=self.diarization_provider,
+                model_name=self.diarization_model_name,
+                token=self.hf_token,
+                device=self.device,
+                segmentation_batch_size=self.segmentation_batch_size
+            )
             logger.debug(f"说话人分离完成，得到 {len(diarization_result.segments)} 个说话人分段，检测到 {diarization_result.num_speakers} 个说话人")
         
         # 步骤3: 创建增强分段
@@ -473,6 +477,7 @@ def transcribe_audio(
     audio_segment: AudioSegment,
     asr_model_name: str = "mlx-community/parakeet-tdt-0.6b-v2",
     asr_provider: str = "parakeet_mlx",
+    diarization_provider: str = "pyannote_mlx",
     diarization_model_name: str = "pyannote/speaker-diarization-3.1",
     hf_token: Optional[str] = None,
     device: str = "cpu",
@@ -486,6 +491,7 @@ def transcribe_audio(
         audio_segment: 输入的AudioSegment对象
         asr_model_name: ASR模型名称
         asr_provider: ASR提供者名称
+        diarization_provider: 说话人分离提供者名称
         diarization_model_name: 说话人分离模型名称
         hf_token: Hugging Face令牌
         device: 推理设备，'cpu'或'cuda'
@@ -500,6 +506,7 @@ def transcribe_audio(
     transcriber = CombinedTranscriber(
         asr_model_name=asr_model_name,
         asr_provider=asr_provider,
+        diarization_provider=diarization_provider,
         diarization_model_name=diarization_model_name,
         hf_token=hf_token,
         device=device,
@@ -516,6 +523,7 @@ def transcribe_podcast_audio(
     episode_info: Optional[PodcastEpisode] = None,
     asr_model_name: str = "mlx-community/parakeet-tdt-0.6b-v2",
     asr_provider: str = "parakeet_mlx",
+    diarization_provider: str = "pyannote_mlx",
     diarization_model_name: str = "pyannote/speaker-diarization-3.1",
     llm_model_name: str = "mlx-community/gemma-3-12b-it-4bit-DWQ",
     hf_token: Optional[str] = None,
@@ -532,6 +540,7 @@ def transcribe_podcast_audio(
         episode_info: 播客剧集信息
         asr_model_name: ASR模型名称
         asr_provider: ASR提供者名称
+        diarization_provider: 说话人分离提供者名称
         diarization_model_name: 说话人分离模型名称
         llm_model_name: LLM模型名称，如果为None则无法识别说话人名称
         hf_token: Hugging Face令牌
@@ -547,6 +556,7 @@ def transcribe_podcast_audio(
     transcriber = CombinedTranscriber(
         asr_model_name=asr_model_name,
         asr_provider=asr_provider,
+        diarization_provider=diarization_provider,
         diarization_model_name=diarization_model_name,
         hf_token=hf_token,
         device=device,
