@@ -12,7 +12,8 @@ from concurrent.futures import ThreadPoolExecutor
 import re # 新增导入
 
 # 导入ASR和说话人分离模块，使用相对导入
-from .asr.asr_parakeet_mlx import MLXParakeetTranscriber, TranscriptionResult
+from .asr import asr_router
+from .asr.asr_base import TranscriptionResult
 from .diarization.diarization_pyannote import PyannoteTranscriber, DiarizationResult
 from .schemas import EnhancedSegment, CombinedTranscriptionResult, PodcastChannel, PodcastEpisode  # 新增导入
 from .summary.speaker_identify import recognize_speaker_names  # 新增导入
@@ -27,6 +28,7 @@ class CombinedTranscriber:
     def __init__(
         self,
         asr_model_name: str = "mlx-community/parakeet-tdt-0.6b-v2",
+        asr_provider: str = "distil_whisper_transformers",
         diarization_model_name: str = "pyannote/speaker-diarization-3.1",
         hf_token: Optional[str] = None,
         device: str = "cpu",
@@ -38,6 +40,7 @@ class CombinedTranscriber:
         
         参数:
             asr_model_name: ASR模型名称
+            asr_provider: ASR提供者名称
             diarization_model_name: 说话人分离模型名称
             hf_token: Hugging Face令牌
             device: 推理设备，'cpu'或'cuda'
@@ -45,22 +48,18 @@ class CombinedTranscriber:
             parallel: 是否并行执行ASR和说话人分离，默认为False
         """
         self.asr_model_name = asr_model_name
+        self.asr_provider = asr_provider
         self.diarization_model_name = diarization_model_name
         self.hf_token = hf_token or os.environ.get("HF_TOKEN")
         self.device = device
         self.segmentation_batch_size = segmentation_batch_size
         self.parallel = parallel
         
-        logger.info(f"初始化组合转录器，ASR模型: {asr_model_name}，分离模型: {diarization_model_name}，分割批处理大小: {segmentation_batch_size}，并行执行: {parallel}")
+        logger.info(f"初始化组合转录器，ASR提供者: {asr_provider}，ASR模型: {asr_model_name}，分离模型: {diarization_model_name}，分割批处理大小: {segmentation_batch_size}，并行执行: {parallel}")
         
-        self.asr_model = None
         self.diarization_model = None
     
-    def _load_asr_model(self):
-        """按需加载ASR模型"""
-        if self.asr_model is None:
-            logger.info("加载ASR模型")
-            self.asr_model = MLXParakeetTranscriber(model_name=self.asr_model_name)
+
 
     def _load_diarization_model(self):
         """按需加载说话人分离模型"""
@@ -118,9 +117,13 @@ class CombinedTranscriber:
 
     def _run_asr(self, audio: AudioSegment) -> TranscriptionResult:
         """执行ASR处理"""
-        self._load_asr_model()
         logger.debug("执行ASR...")
-        return self.asr_model.transcribe(audio)
+        return asr_router.transcribe_audio(
+            audio,
+            provider=self.asr_provider,
+            model_name=self.asr_model_name,
+            device=self.device
+        )
         
     def _run_diarization(self, audio: AudioSegment) -> DiarizationResult:
         """执行说话人分离处理"""
@@ -155,9 +158,13 @@ class CombinedTranscriber:
         else:
             # 顺序执行ASR和说话人分离
             # 步骤1: 对整个音频执行ASR
-            self._load_asr_model() # 按需加载ASR模型
             logger.debug("执行ASR...")
-            asr_result: TranscriptionResult = self.asr_model.transcribe(audio)
+            asr_result: TranscriptionResult = asr_router.transcribe_audio(
+                audio,
+                provider=self.asr_provider,
+                model_name=self.asr_model_name,
+                device=self.device
+            )
             logger.debug(f"ASR完成，识别语言: {asr_result.language}，得到 {len(asr_result.segments)} 个分段")
 
             # 步骤2: 对整个音频执行说话人分离
@@ -465,6 +472,7 @@ class CombinedTranscriber:
 def transcribe_audio(
     audio_segment: AudioSegment,
     asr_model_name: str = "mlx-community/parakeet-tdt-0.6b-v2",
+    asr_provider: str = "parakeet_mlx",
     diarization_model_name: str = "pyannote/speaker-diarization-3.1",
     hf_token: Optional[str] = None,
     device: str = "cpu",
@@ -477,6 +485,7 @@ def transcribe_audio(
     参数:
         audio_segment: 输入的AudioSegment对象
         asr_model_name: ASR模型名称
+        asr_provider: ASR提供者名称
         diarization_model_name: 说话人分离模型名称
         hf_token: Hugging Face令牌
         device: 推理设备，'cpu'或'cuda'
@@ -490,6 +499,7 @@ def transcribe_audio(
     
     transcriber = CombinedTranscriber(
         asr_model_name=asr_model_name,
+        asr_provider=asr_provider,
         diarization_model_name=diarization_model_name,
         hf_token=hf_token,
         device=device,
@@ -505,6 +515,7 @@ def transcribe_podcast_audio(
     podcast_info: Optional[PodcastChannel] = None,
     episode_info: Optional[PodcastEpisode] = None,
     asr_model_name: str = "mlx-community/parakeet-tdt-0.6b-v2",
+    asr_provider: str = "parakeet_mlx",
     diarization_model_name: str = "pyannote/speaker-diarization-3.1",
     llm_model_name: str = "mlx-community/gemma-3-12b-it-4bit-DWQ",
     hf_token: Optional[str] = None,
@@ -520,6 +531,7 @@ def transcribe_podcast_audio(
         podcast_info: 播客频道信息
         episode_info: 播客剧集信息
         asr_model_name: ASR模型名称
+        asr_provider: ASR提供者名称
         diarization_model_name: 说话人分离模型名称
         llm_model_name: LLM模型名称，如果为None则无法识别说话人名称
         hf_token: Hugging Face令牌
@@ -534,6 +546,7 @@ def transcribe_podcast_audio(
     
     transcriber = CombinedTranscriber(
         asr_model_name=asr_model_name,
+        asr_provider=asr_provider,
         diarization_model_name=diarization_model_name,
         hf_token=hf_token,
         device=device,

@@ -24,7 +24,9 @@ def main():
     # audio_file = "/Users/konie/Desktop/voices/lex_ai_john_carmack_30.wav"  # 播客音频文件路径
     # audio_file = "/Users/konie/Desktop/voices/lex_ai_john_carmack.mp3"
     # model = "distil-whisper"
-    model = "parakeet"
+    model = "distil-whisper-transformers"
+
+    device = "mlx"
     
     # 检查文件是否存在
     if not os.path.exists(audio_file):
@@ -39,6 +41,10 @@ def main():
         from src.podcast_transcribe.asr.asr_distil_whisper_mlx import transcribe_audio
         model_name = "mlx-community/distil-whisper-large-v3"
         logger.info(f"使用Distil Whisper模型: {model_name}")
+    elif model == "distil-whisper-transformers":  # distil-whisper
+        from src.podcast_transcribe.asr.asr_distil_whisper_transformers import transcribe_audio
+        model_name = "distil-whisper/distil-large-v3.5"
+        logger.info(f"使用Distil Whisper模型: {model_name}")
     else:
         logger.error(f"错误：未指定模型类型")
         return 1
@@ -52,7 +58,7 @@ def main():
         
         # 进行转录
         print("开始转录...")
-        result = transcribe_audio(audio, model_name=model_name)
+        result = transcribe_audio(audio, model_name=model_name, device=device)
         
         # 输出结果
         print("\n转录结果:")
