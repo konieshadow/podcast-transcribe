@@ -14,7 +14,7 @@ import re # 新增导入
 # 导入ASR和说话人分离模块，使用相对导入
 from .asr import asr_router
 from .asr.asr_base import TranscriptionResult
-from .diarization.diarization_pyannote import PyannoteTranscriber, DiarizationResult
+from .diarization.diarization_pyannote_mlx import PyannoteTranscriber, DiarizationResult
 from .schemas import EnhancedSegment, CombinedTranscriptionResult, PodcastChannel, PodcastEpisode  # 新增导入
 from .summary.speaker_identify import recognize_speaker_names  # 新增导入
 from .llm.llm_gemma import GemmaMLXChatCompletion  # 新增导入

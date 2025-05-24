@@ -13,7 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.podcast_transcribe.audio import load_audio
-from src.podcast_transcribe.diarization.diarization_pyannote import diarize_audio
+from podcast_transcribe.diarization.diarization_pyannote_mlx import diarize_audio as diarize_audio_mlx
+from podcast_transcribe.diarization.diarization_pyannote_transformers import diarize_audio as diarize_audio_transformers
 
 
 def main():
@@ -41,12 +42,20 @@ def main():
         
         print(f"音频信息: 时长={audio.duration_seconds:.2f}秒, 通道数={audio.channels}, 采样率={audio.frame_rate}Hz")
         
-        # 进行说话人分离
-        print("开始说话人分离...")
-        result = diarize_audio(audio, model_name=model_name, token=hf_token, device=device, segmentation_batch_size=128)
+        # 根据model_name选择合适的实现
+        if "pyannote/speaker-diarization" in model_name:
+            # 使用transformers版本进行说话人分离
+            print(f"使用transformers版本处理模型: {model_name}")
+            result = diarize_audio_transformers(audio, model_name=model_name, token=hf_token, device=device, segmentation_batch_size=128)
+            version_name = "Transformers"
+        else:
+            # 使用MLX版本进行说话人分离
+            print(f"使用MLX版本处理模型: {model_name}")
+            result = diarize_audio_mlx(audio, model_name=model_name, token=hf_token, device=device, segmentation_batch_size=128)
+            version_name = "MLX"
         
         # 输出结果
-        print("\n说话人分离结果:")
+        print(f"\n{version_name}版本说话人分离结果:")
         print("-" * 50)
         print(f"检测到的说话人数量: {result.num_speakers}")
         print(f"分段总数: {len(result.segments)}")
