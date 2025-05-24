@@ -96,8 +96,8 @@ class TransformersDistilWhisperTranscriber(BaseTransformersTranscriber):
             模型的转录结果
         """
         # transformers pipeline 接受numpy数组作为输入
-        # 采样率必须是16kHz
-        return self.pipeline(audio_data, sampling_rate=16000)
+        # 音频数据已经在_prepare_audio中确保是16kHz采样率
+        return self.pipeline(audio_data)
     
     def _get_text_from_result(self, result):
         """
