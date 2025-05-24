@@ -11,13 +11,13 @@ import numpy as np
 import soundfile as sf
 
 # 导入基类
-from .asr_base import BaseMLXTranscriber, TranscriptionResult
+from .asr_base import BaseTranscriber, TranscriptionResult
 
 # 配置日志
 logger = logging.getLogger("asr")
 
 
-class MLXParakeetTranscriber(BaseMLXTranscriber):
+class MLXParakeetTranscriber(BaseTranscriber):
     """使用MLX加载和运行parakeet-tdt-0.6b-v2模型的转录器"""
     
     def __init__(
@@ -47,51 +47,6 @@ class MLXParakeetTranscriber(BaseMLXTranscriber):
         except Exception as e:
             logger.error(f"加载模型失败: {str(e)}", exc_info=True)
             raise RuntimeError(f"加载模型失败: {str(e)}")
-    
-    def _prepare_audio(self, audio: AudioSegment) -> AudioSegment:
-        """
-        准备音频数据
-        
-        参数:
-            audio: 输入的AudioSegment对象
-            
-        返回:
-            处理后的AudioSegment对象
-        """
-        logger.debug(f"准备音频数据: 时长={len(audio)/1000:.2f}秒, 采样率={audio.frame_rate}Hz, 声道数={audio.channels}")
-        
-        # 确保采样率为16kHz
-        if audio.frame_rate != 16000:
-            logger.debug(f"重采样音频从 {audio.frame_rate}Hz 到 16000Hz")
-            audio = audio.set_frame_rate(16000)
-            
-        # 确保是单声道
-        if audio.channels > 1:
-            logger.debug(f"将{audio.channels}声道音频转换为单声道")
-            audio = audio.set_channels(1)
-            
-        logger.debug(f"音频处理完成")
-        
-        return audio
-    
-    def _detect_language(self, text: str) -> str:
-        """
-        简单的语言检测（基于经验规则）
-        
-        参数:
-            text: 识别出的文本
-            
-        返回:
-            检测到的语言代码
-        """
-        # 简单的规则检测，实际应用中应使用更准确的语言检测
-        chinese_chars = len([c for c in text if '\u4e00' <= c <= '\u9fff'])
-        chinese_ratio = chinese_chars / len(text) if text else 0
-        logger.debug(f"语言检测: 中文字符比例 = {chinese_ratio:.2f}")
-        
-        if chinese_chars > len(text) * 0.3:
-            return "zh"
-        return "en"
     
     def _convert_segments(self, aligned_result) -> List[Dict[str, Union[float, str]]]:
         """

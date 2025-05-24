@@ -9,13 +9,13 @@ import logging
 import numpy as np
 
 # 导入基类
-from .asr_base import BaseTransformersTranscriber, TranscriptionResult
+from .asr_base import BaseTranscriber, TranscriptionResult
 
 # 配置日志
 logger = logging.getLogger("asr")
 
 
-class TransformersDistilWhisperTranscriber(BaseTransformersTranscriber):
+class TransformersDistilWhisperTranscriber(BaseTranscriber):
     """使用Transformers加载和运行distil-whisper-large-v3.5模型的转录器"""
     
     def __init__(

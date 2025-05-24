@@ -10,13 +10,13 @@ import numpy as np
 import mlx_whisper
 
 # 导入基类
-from .asr_base import BaseMLXTranscriber, TranscriptionResult
+from .asr_base import BaseTranscriber, TranscriptionResult
 
 # 配置日志
 logger = logging.getLogger("asr")
 
 
-class MLXDistilWhisperTranscriber(BaseMLXTranscriber):
+class MLXDistilWhisperTranscriber(BaseTranscriber):
     """使用MLX加载和运行distil-whisper-large-v3模型的转录器"""
     
     def __init__(
