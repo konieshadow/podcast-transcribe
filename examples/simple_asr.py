@@ -20,9 +20,9 @@ logger = logging.getLogger("asr_example")
 
 def main():
     """主函数"""
-    audio_file = Path.joinpath(Path(__file__).parent, "input", "lex_ai_john_carmack_1.wav")  # 播客音频文件路径
+    # audio_file = Path.joinpath(Path(__file__).parent, "input", "lex_ai_john_carmack_1.wav")  # 播客音频文件路径
     # audio_file = "/Users/konie/Desktop/voices/lex_ai_john_carmack_30.wav"  # 播客音频文件路径
-    # audio_file = "/Users/konie/Desktop/voices/lex_ai_john_carmack.mp3"
+    audio_file = "/Users/konie/Desktop/voices/podcast1_1.wav"
     # model = "distil-whisper"
     model = "distil-whisper-transformers"
 

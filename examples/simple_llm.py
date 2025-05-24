@@ -5,17 +5,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from podcast_transcribe.llm.llm_gemma_mlx import GemmaMLXChatCompletion
+from src.podcast_transcribe.llm.llm_gemma_mlx import GemmaMLXChatCompletion
+from src.podcast_transcribe.llm.llm_gemma_transfomers import GemmaTransformersChatCompletion
 
 
 if __name__ == "__main__":
     # 示例用法：
     print("正在初始化 Gemma MLX 聊天补全...")
     try:
+        model_name = "google/gemma-3-12b-it"
+
         # gemma_chat = GemmaMLXChatCompletion(model_name="mlx-community/gemma-3-12b-it-4bit-DWQ")
         # 或者，如果您有更小、更快的模型，可以尝试使用，例如："mlx-community/gemma-2b-it-8bit"
-        gemma_chat = GemmaMLXChatCompletion(model_name="mlx-community/gemma-3-12b-it-4bit-DWQ")
-        print("模型加载成功。")
+        if model_name == "mlx-community/gemma-3-12b-it-4bit-DWQ":
+            gemma_chat = GemmaMLXChatCompletion(model_name="mlx-community/gemma-3-12b-it-4bit-DWQ")
+        elif model_name == "google/gemma-3-12b-it":
+            gemma_chat = GemmaTransformersChatCompletion(model_name="google/gemma-3-12b-it")
+        print(f"模型 {model_name} 加载成功。")
 
         print("\n--- 示例 1: 简单用户查询 ---")
         messages_example1 = [
