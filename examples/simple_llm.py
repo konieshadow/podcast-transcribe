@@ -14,14 +14,14 @@ if __name__ == "__main__":
     print("正在初始化 Gemma MLX 聊天补全...")
     try:
         model_name = "google/gemma-3-12b-it"
+        use_4bit_quantization = True
 
         # gemma_chat = GemmaMLXChatCompletion(model_name="mlx-community/gemma-3-12b-it-4bit-DWQ")
         # 或者，如果您有更小、更快的模型，可以尝试使用，例如："mlx-community/gemma-2b-it-8bit"
-        if model_name == "mlx-community/gemma-3-12b-it-4bit-DWQ":
-            gemma_chat = GemmaMLXChatCompletion(model_name="mlx-community/gemma-3-12b-it-4bit-DWQ")
-        elif model_name == "google/gemma-3-12b-it":
-            gemma_chat = GemmaTransformersChatCompletion(model_name="google/gemma-3-12b-it")
-        print(f"模型 {model_name} 加载成功。")
+        if model_name.startswith("mlx-community"):
+            gemma_chat = GemmaMLXChatCompletion(model_name=model_name)
+        else:
+            gemma_chat = GemmaTransformersChatCompletion(model_name=model_name, use_4bit_quantization=use_4bit_quantization)
 
         print("\n--- 示例 1: 简单用户查询 ---")
         messages_example1 = [

@@ -21,11 +21,11 @@ from src.podcast_transcribe.transcriber import transcribe_audio
 
 def main():
     """主函数"""
-    # audio_file = Path.joinpath(Path(__file__).parent, "input", "lex_ai_john_carmack_1.wav")  # 播客音频文件路径
-    audio_file = Path("/Users/konie/Desktop/voices/lex_ai_john_carmack_30.wav")
+    audio_file = Path.joinpath(Path(__file__).parent, "input", "lex_ai_john_carmack_1.wav")  # 播客音频文件路径
+    # audio_file = Path("/Users/konie/Desktop/voices/lex_ai_john_carmack_30.wav")
     
     # 模型配置
-    asr_model_name = "mlx-community/parakeet-tdt-0.6b-v2"  # ASR模型名称
+    asr_model_name = "distil-whisper/distil-large-v3.5"  # ASR模型名称
     diarization_model_name = "pyannote/speaker-diarization-3.1"  # 说话人分离模型名称
     hf_token = "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"  # Hugging Face API 令牌
     device = "mps"  # 设备类型

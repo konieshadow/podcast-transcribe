@@ -7,6 +7,8 @@ import logging
 from typing import Dict, Any, Optional, Callable
 from pydub import AudioSegment
 from ..schemas import DiarizationResult
+from . import diarization_pyannote_mlx
+from . import diarization_pyannote_transformers
 
 # 配置日志
 logger = logging.getLogger("diarization")
@@ -40,32 +42,31 @@ class DiarizerRouter:
     
     def _lazy_load_module(self, provider: str):
         """
-        延迟加载指定provider的模块
+        获取指定provider的模块
         
         参数:
             provider: provider名称
             
         返回:
-            加载的模块
+            对应的模块
         """
         if provider not in self._provider_configs:
             raise ValueError(f"不支持的provider: {provider}")
             
         if provider not in self._loaded_modules:
-            try:
-                module_path = self._provider_configs[provider]["module_path"]
-                logger.info(f"延迟加载模块: {module_path}")
-                
-                # 动态导入模块
-                from importlib import import_module
-                module = import_module(f".{module_path}", package="podcast_transcribe.diarization")
-                
-                self._loaded_modules[provider] = module
-                logger.info(f"模块 {module_path} 加载成功")
-                
-            except ImportError as e:
-                logger.error(f"加载模块 {module_path} 失败: {str(e)}")
-                raise ImportError(f"无法加载provider '{provider}' 的模块: {str(e)}")
+            module_path = self._provider_configs[provider]["module_path"]
+            logger.info(f"获取模块: {module_path}")
+            
+            # 根据module_path返回对应的模块
+            if module_path == "diarization_pyannote_mlx":
+                module = diarization_pyannote_mlx
+            elif module_path == "diarization_pyannote_transformers":
+                module = diarization_pyannote_transformers
+            else:
+                raise ImportError(f"未找到模块: {module_path}")
+            
+            self._loaded_modules[provider] = module
+            logger.info(f"模块 {module_path} 获取成功")
         
         return self._loaded_modules[provider]
     

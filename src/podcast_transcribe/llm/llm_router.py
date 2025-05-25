@@ -6,6 +6,8 @@ LLM模型调用路由器
 import logging
 from typing import Dict, Any, Optional, List, Union
 from .llm_gemma_base import BaseGemmaChatCompletion
+from . import llm_gemma_mlx
+from . import llm_gemma_transfomers
 
 # 配置日志
 logger = logging.getLogger("llm")
@@ -29,7 +31,7 @@ class LLMRouter:
                 "description": "基于MLX库的Gemma聊天完成实现"
             },
             "transformers": {
-                "module_path": "llm_gemma_transformers",
+                "module_path": "llm_gemma_transfomers",
                 "class_name": "GemmaTransformersChatCompletion",
                 "default_model": "google/gemma-3-12b-it",
                 "supported_params": [
@@ -42,32 +44,31 @@ class LLMRouter:
     
     def _lazy_load_module(self, provider: str):
         """
-        延迟加载指定provider的模块
+        获取指定provider的模块
         
         参数:
             provider: provider名称
             
         返回:
-            加载的模块
+            对应的模块
         """
         if provider not in self._provider_configs:
             raise ValueError(f"不支持的provider: {provider}")
             
         if provider not in self._loaded_modules:
-            try:
-                module_path = self._provider_configs[provider]["module_path"]
-                logger.info(f"延迟加载模块: {module_path}")
-                
-                # 动态导入模块
-                from importlib import import_module
-                module = import_module(f".{module_path}", package="podcast_transcribe.llm")
-                
-                self._loaded_modules[provider] = module
-                logger.info(f"模块 {module_path} 加载成功")
-                
-            except ImportError as e:
-                logger.error(f"加载模块 {module_path} 失败: {str(e)}")
-                raise ImportError(f"无法加载provider '{provider}' 的模块: {str(e)}")
+            module_path = self._provider_configs[provider]["module_path"]
+            logger.info(f"获取模块: {module_path}")
+            
+            # 根据module_path返回对应的模块
+            if module_path == "llm_gemma_mlx":
+                module = llm_gemma_mlx
+            elif module_path == "llm_gemma_transfomers":
+                module = llm_gemma_transfomers
+            else:
+                raise ImportError(f"未找到模块: {module_path}")
+            
+            self._loaded_modules[provider] = module
+            logger.info(f"模块 {module_path} 获取成功")
         
         return self._loaded_modules[provider]
     
