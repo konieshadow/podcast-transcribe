@@ -5,9 +5,10 @@ LLM模型调用路由器
 
 import logging
 from typing import Dict, Any, Optional, List, Union
-from .llm_gemma_base import BaseGemmaChatCompletion
+from .llm_base import BaseChatCompletion
 from . import llm_gemma_mlx
 from . import llm_gemma_transfomers
+from . import llm_phi4_transfomers
 
 # 配置日志
 logger = logging.getLogger("llm")
@@ -30,7 +31,7 @@ class LLMRouter:
                 "supported_params": ["model_name"],
                 "description": "基于MLX库的Gemma聊天完成实现"
             },
-            "transformers": {
+            "gemma-transformers": {
                 "module_path": "llm_gemma_transfomers",
                 "class_name": "GemmaTransformersChatCompletion",
                 "default_model": "google/gemma-3-12b-it",
@@ -39,6 +40,16 @@ class LLMRouter:
                     "device", "trust_remote_code"
                 ],
                 "description": "基于Transformers库的Gemma聊天完成实现"
+            },
+            "phi4-transformers": {
+                "module_path": "llm_phi4_transfomers",
+                "class_name": "Phi4TransformersChatCompletion",
+                "default_model": "microsoft/Phi-4-mini-reasoning",
+                "supported_params": [
+                    "model_name", "use_4bit_quantization", "device_map", 
+                    "device", "trust_remote_code", "enable_reasoning"
+                ],
+                "description": "基于Transformers库的Phi-4推理聊天完成实现"
             }
         }
     
@@ -64,6 +75,8 @@ class LLMRouter:
                 module = llm_gemma_mlx
             elif module_path == "llm_gemma_transfomers":
                 module = llm_gemma_transfomers
+            elif module_path == "llm_phi4_transfomers":
+                module = llm_phi4_transfomers
             else:
                 raise ImportError(f"未找到模块: {module_path}")
             
@@ -129,7 +142,7 @@ class LLMRouter:
         param_str = "_".join([f"{k}={v}" for k, v in sorted(params.items())])
         return f"{provider}_{param_str}"
     
-    def _get_or_create_instance(self, provider: str, **kwargs) -> BaseGemmaChatCompletion:
+    def _get_or_create_instance(self, provider: str, **kwargs) -> BaseChatCompletion:
         """
         获取或创建LLM实例（支持缓存复用）
         
@@ -224,6 +237,76 @@ class LLMRouter:
             logger.error(f"使用provider '{provider}' 进行聊天完成失败: {str(e)}", exc_info=True)
             raise RuntimeError(f"聊天完成失败: {str(e)}")
     
+    def reasoning_completion(
+        self,
+        messages: List[Dict[str, str]],
+        provider: str = "phi4-transformers",
+        temperature: float = 0.3,
+        max_tokens: int = 2048,
+        top_p: float = 0.9,
+        model: Optional[str] = None,
+        extract_reasoning_steps: bool = True,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        专门用于推理任务的聊天完成接口
+        
+        参数:
+            messages: 消息列表，每个消息包含role和content
+            provider: LLM提供者名称，默认使用phi4-transformers
+            temperature: 温度参数（推理任务建议使用较低值）
+            max_tokens: 最大生成token数
+            top_p: nucleus采样参数
+            model: 可选的模型名称
+            extract_reasoning_steps: 是否提取推理步骤
+            **kwargs: 其他参数
+            
+        返回:
+            包含推理步骤的响应字典
+        """
+        logger.info(f"使用provider '{provider}' 进行推理完成，消息数量: {len(messages)}")
+        
+        # 确保使用支持推理的provider
+        if provider not in ["phi4-transformers"]:
+            logger.warning(f"Provider '{provider}' 可能不支持推理功能，建议使用 'phi4-transformers'")
+        
+        try:
+            # 如果提供了model参数，添加到kwargs中
+            if model is not None:
+                kwargs["model_name"] = model
+            
+            # 获取或创建LLM实例
+            llm_instance = self._get_or_create_instance(provider, **kwargs)
+            
+            # 检查实例是否支持推理完成
+            if hasattr(llm_instance, 'reasoning_completion'):
+                result = llm_instance.reasoning_completion(
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    extract_reasoning_steps=extract_reasoning_steps,
+                    **kwargs
+                )
+            else:
+                # 回退到普通聊天完成
+                logger.warning(f"Provider '{provider}' 不支持推理完成，回退到普通聊天完成")
+                result = llm_instance.create(
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    model=model,
+                    **kwargs
+                )
+            
+            logger.info(f"推理完成成功，使用tokens: {result.get('usage', {}).get('total_tokens', 'unknown')}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"使用provider '{provider}' 进行推理完成失败: {str(e)}", exc_info=True)
+            raise RuntimeError(f"推理完成失败: {str(e)}")
+    
     def get_model_info(self, provider: str, **kwargs) -> Dict[str, Any]:
         """
         获取模型信息
@@ -271,6 +354,12 @@ class LLMRouter:
     
     def clear_cache(self):
         """清理缓存的实例"""
+        # 清理每个实例的GPU缓存
+        for instance in self._llm_instances.values():
+            if hasattr(instance, 'clear_cache'):
+                instance.clear_cache()
+        
+        # 清理实例缓存
         self._llm_instances.clear()
         logger.info("LLM实例缓存已清理")
 
@@ -299,7 +388,9 @@ def chat_completion(
         messages: 消息列表，每个消息包含role和content字段
         provider: LLM提供者，可选值：
             - "mlx": 基于MLX库的Gemma聊天完成实现
-            - "transformers": 基于Transformers库的Gemma聊天完成实现
+            - "gemma-transformers": 基于Transformers库的Gemma聊天完成实现
+            - "phi4-transformers": 基于Transformers库的Phi-4推理聊天完成实现
+            - "transformers": 向后兼容别名，等同于gemma-transformers
         temperature: 温度参数，控制生成的随机性 (0.0-2.0)
         max_tokens: 最大生成token数
         top_p: nucleus采样参数 (0.0-1.0)
@@ -320,13 +411,21 @@ def chat_completion(
             provider="mlx"
         )
         
-        # 使用transformers实现
+        # 使用Gemma transformers实现
         response = chat_completion(
             messages=[{"role": "user", "content": "你好"}],
-            provider="transformers",
+            provider="gemma-transformers",
             model="google/gemma-3-12b-it",
             device="cuda",
             use_4bit_quantization=True
+        )
+        
+        # 使用Phi-4推理实现
+        response = chat_completion(
+            messages=[{"role": "user", "content": "解这个数学题：2x + 5 = 15"}],
+            provider="phi4-transformers",
+            model="microsoft/Phi-4-mini-reasoning",
+            device="cuda"
         )
         
         # 自定义参数
@@ -360,6 +459,80 @@ def chat_completion(
         max_tokens=max_tokens,
         top_p=top_p,
         model=model,
+        **params
+    )
+
+
+def reasoning_completion(
+    messages: List[Dict[str, str]],
+    provider: str = "phi4-transformers",
+    temperature: float = 0.3,
+    max_tokens: int = 2048,
+    top_p: float = 0.9,
+    model: Optional[str] = None,
+    device: Optional[str] = None,
+    use_4bit_quantization: bool = False,
+    device_map: Optional[str] = "auto",
+    trust_remote_code: bool = True,
+    extract_reasoning_steps: bool = True,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    专门用于推理任务的聊天完成接口函数
+    
+    参数:
+        messages: 消息列表，每个消息包含role和content字段
+        provider: LLM提供者，默认使用phi4-transformers
+        temperature: 温度参数（推理任务建议使用较低值）
+        max_tokens: 最大生成token数
+        top_p: nucleus采样参数
+        model: 模型名称，如果不指定则使用默认模型
+        device: 推理设备
+        use_4bit_quantization: 是否使用4bit量化
+        device_map: 设备映射配置
+        trust_remote_code: 是否信任远程代码
+        extract_reasoning_steps: 是否提取推理步骤
+        **kwargs: 其他参数
+        
+    返回:
+        包含推理步骤的响应字典
+        
+    示例:
+        # 数学推理任务
+        response = reasoning_completion(
+            messages=[{"role": "user", "content": "解这个方程：3x + 7 = 22"}],
+            provider="phi4-transformers",
+            extract_reasoning_steps=True
+        )
+        
+        # 逻辑推理任务
+        response = reasoning_completion(
+            messages=[{"role": "user", "content": "如果所有的猫都是动物，而小花是一只猫，那么小花是什么？"}],
+            provider="phi4-transformers",
+            temperature=0.2
+        )
+    """
+    # 准备参数
+    params = kwargs.copy()
+    if model is not None:
+        params["model_name"] = model
+    if device is not None:
+        params["device"] = device
+    if use_4bit_quantization:
+        params["use_4bit_quantization"] = use_4bit_quantization
+    if device_map != "auto":
+        params["device_map"] = device_map
+    if not trust_remote_code:
+        params["trust_remote_code"] = trust_remote_code
+    
+    return _router.reasoning_completion(
+        messages=messages,
+        provider=provider,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=top_p,
+        model=model,
+        extract_reasoning_steps=extract_reasoning_steps,
         **params
     )
 

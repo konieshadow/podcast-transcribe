@@ -1,10 +1,10 @@
 from mlx_lm import load, generate
 from mlx_lm.sample_utils import make_sampler
 from typing import Dict, Union
-from .llm_gemma_base import BaseGemmaChatCompletion
+from .llm_base import BaseChatCompletion
 
 
-class GemmaMLXChatCompletion(BaseGemmaChatCompletion):
+class GemmaMLXChatCompletion(BaseChatCompletion):
     """基于 MLX 库的 Gemma 聊天完成实现"""
     
     def __init__(self, model_name: str = "mlx-community/gemma-3-12b-it-4bit-DWQ"):
