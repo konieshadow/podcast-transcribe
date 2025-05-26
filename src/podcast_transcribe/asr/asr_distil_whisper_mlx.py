@@ -6,7 +6,6 @@ import os
 from pydub import AudioSegment
 from typing import Dict, List, Union
 import logging
-import mlx_whisper
 
 # 导入基类
 from .asr_base import BaseTranscriber, TranscriptionResult
@@ -77,7 +76,8 @@ class MLXDistilWhisperTranscriber(BaseTranscriber):
         返回:
             模型的转录结果
         """
-        return mlx_whisper.transcribe(audio_data, path_or_hf_repo=self.model_name)
+        from mlx_whisper import transcribe
+        return transcribe(audio_data, path_or_hf_repo=self.model_name)
     
     def _get_text_from_result(self, result):
         """
