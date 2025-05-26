@@ -11,8 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "env": {
-                "HTTPS_PROXY": "http://127.0.0.1:12334",
-                "HF_TOKEN": "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",
+                // "HTTPS_PROXY": "http://127.0.0.1:12334",
                 // "HF_ENDPOINT": "https://hf-mirror.com"
             }
         }
