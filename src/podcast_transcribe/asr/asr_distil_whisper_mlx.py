@@ -6,7 +6,6 @@ import os
 from pydub import AudioSegment
 from typing import Dict, List, Union
 import logging
-import numpy as np
 import mlx_whisper
 
 # 导入基类

@@ -1,5 +1,3 @@
-from mlx_lm import load, generate
-from mlx_lm.sample_utils import make_sampler
 from typing import Dict, Union
 from .llm_base import BaseChatCompletion
 
@@ -14,6 +12,8 @@ class GemmaMLXChatCompletion(BaseChatCompletion):
     def _load_model_and_tokenizer(self):
         """加载 MLX 模型和分词器"""
         try:
+            from mlx_lm import load
+
             print(f"正在加载 MLX 模型: {self.model_name}")
             self.model, self.tokenizer = load(self.model_name)
             print(f"MLX 模型 {self.model_name} 加载成功")
@@ -32,6 +32,8 @@ class GemmaMLXChatCompletion(BaseChatCompletion):
         **kwargs
     ) -> str:
         """使用 MLX 生成响应"""
+        from mlx_lm import load, generate
+        from mlx_lm.sample_utils import make_sampler
         
         # 为temperature和top_p创建一个采样器
         sampler = make_sampler(temp=temperature, top_p=top_p)
