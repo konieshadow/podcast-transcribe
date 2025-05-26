@@ -4,8 +4,9 @@ emoji: 📊
 colorFrom: blue
 colorTo: purple
 sdk: gradio
-sdk_version: 5.31.0
-app_file: app.py
+python_version: 3.12
+sdk_version: 5.30.0
+app_file: src/podcast_transcribe/webui/app.py
 pinned: false
 license: mit
 short_description: Podcast transcriber
