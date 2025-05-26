@@ -23,7 +23,7 @@ def main():
     asr_model_name = "mlx-community/parakeet-tdt-0.6b-v2"  # ASR模型名称
     diarization_model_name = "pyannote/speaker-diarization-3.1"  # 说话人分离模型名称
     llm_model_path = "mlx-community/gemma-3-12b-it-4bit-DWQ"
-    hf_token = "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"  # Hugging Face API 令牌
+    hf_token = ""  # Hugging Face API 令牌
     device = "mps"  # 设备类型
     segmentation_batch_size = 64
     parallel = True

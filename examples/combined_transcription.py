@@ -27,7 +27,7 @@ def main():
     # 模型配置
     asr_model_name = "distil-whisper/distil-large-v3.5"  # ASR模型名称
     diarization_model_name = "pyannote/speaker-diarization-3.1"  # 说话人分离模型名称
-    hf_token = "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"  # Hugging Face API 令牌
+    hf_token = ""  # Hugging Face API 令牌
     device = "mps"  # 设备类型
     segmentation_batch_size = 64
     parallel = True
