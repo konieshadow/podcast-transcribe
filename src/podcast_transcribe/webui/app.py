@@ -327,7 +327,6 @@ def start_transcription(local_audio_file_path: str, podcast_data: PodcastChannel
         result: CombinedTranscriptionResult = transcribe_podcast_audio(audio_segment,
                                                                        podcast_info=podcast_data,
                                                                        episode_info=episode_info,
-                                                                       device="mps",
                                                                        segmentation_batch_size=64,
                                                                        parallel=True)
         print(f"转录完成，结果: {result is not None}, 段落数: {len(result.segments) if result and result.segments else 0}")

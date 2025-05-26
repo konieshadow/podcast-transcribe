@@ -1,8 +1,6 @@
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional
 import json
 import re
-from dataclasses import dataclass, field
-from datetime import datetime
 
 from ..schemas import EnhancedSegment, PodcastChannel, PodcastEpisode
 from ..llm import llm_router
@@ -13,7 +11,7 @@ class SpeakerIdentifier:
     说话人识别器类，用于根据转录分段和播客元数据识别说话人的真实姓名或昵称
     """
     
-    def __init__(self, llm_model_name: Optional[str] = None, llm_provider: str = "gemma-mlx"):
+    def __init__(self, llm_model_name: str, llm_provider: str):
         """
         初始化说话人识别器
         

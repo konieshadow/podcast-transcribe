@@ -7,9 +7,8 @@ import os
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.podcast_transcribe.rss.podcast_rss_parser import parse_rss_xml_content
-from podcast_transcribe.llm.llm_gemma_mlx import GemmaMLXChatCompletion
 from src.podcast_transcribe.schemas import EnhancedSegment, CombinedTranscriptionResult
-from src.podcast_transcribe.summary.speaker_identify import recognize_speaker_names
+from src.podcast_transcribe.summary.speaker_identify import SpeakerIdentifier
 
 if __name__ == '__main__':
     transcribe_result_dump_file = Path.joinpath(Path(__file__).parent, "output", "lex_ai_john_carmack_1.transcription.json")
@@ -55,12 +54,15 @@ if __name__ == '__main__':
     mock_episode_info = next((episode for episode in mock_podcast_info.episodes if episode.title.startswith("#309")), None)
     if not mock_episode_info:
         raise ValueError("Could not find episode with title starting with '#309'")
+    
 
-    llm_client_instance = GemmaMLXChatCompletion()
-
+    speaker_identifier = SpeakerIdentifier(
+        llm_model_name="mlx-community/gemma-3-12b-it-4bit-DWQ",
+        llm_provider="gemma-mlx"
+    )
 
     # 3. Call the function
     print("\\n--- Test Case 1: Normal execution ---")
-    speaker_names = recognize_speaker_names(transcription_result.segments, mock_podcast_info, mock_episode_info, llm_client_instance)
+    speaker_names = speaker_identifier.recognize_speaker_names(transcription_result.segments, mock_podcast_info, mock_episode_info)
     print("\\nRecognized Speaker Names (Test Case 1):")
     print(json.dumps(speaker_names, ensure_ascii=False, indent=2))

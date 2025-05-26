@@ -3,13 +3,13 @@
 """
 
 import os
-import numpy as np
 from pydub import AudioSegment
-from typing import Dict, List, Union, Optional, Tuple, Iterator, Any
+from typing import Dict, List, Union, Optional, Any
 import logging
-import time
 from concurrent.futures import ThreadPoolExecutor
-import re # 新增导入
+import re
+
+from .summary.speaker_identify import SpeakerIdentifier # 新增导入
 
 # 导入ASR和说话人分离模块，使用相对导入
 from .asr import asr_router
@@ -25,10 +25,10 @@ class CombinedTranscriber:
     
     def __init__(
         self,
-        asr_model_name: str = "mlx-community/parakeet-tdt-0.6b-v2",
-        asr_provider: str = "distil_whisper_transformers",
-        diarization_provider: str = "pyannote_transformers",
-        diarization_model_name: str = "pyannote/speaker-diarization-3.1",
+        asr_model_name: str,
+        asr_provider: str,
+        diarization_provider: str,
+        diarization_model_name: str,
         llm_model_name: Optional[str] = None,
         llm_provider: Optional[str] = None,
         hf_token: Optional[str] = None,
@@ -53,10 +53,23 @@ class CombinedTranscriber:
             import torch
             if torch.backends.mps.is_available():
                 device = "mps"
+                if not llm_model_name:
+                    llm_model_name = "mlx-community/gemma-3-12b-it-4bit-DWQ"
+                if not llm_provider:
+                    llm_provider = "gemma-mlx"
+
             elif torch.cuda.is_available():
                 device = "cuda"
+                if not llm_model_name:
+                    llm_model_name = "google/gemma-3-12b-it"
+                if not llm_provider:
+                    llm_provider = "gemma-transformers"
             else:
                 device = "cpu"
+                if not llm_model_name:
+                    llm_model_name = "google/gemma-3-12b-it"
+                if not llm_provider:
+                    llm_provider = "gemma-transformers"
 
         self.asr_model_name = asr_model_name
         self.asr_provider = asr_provider
@@ -66,6 +79,11 @@ class CombinedTranscriber:
         self.device = device
         self.segmentation_batch_size = segmentation_batch_size
         self.parallel = parallel
+
+        self.speaker_identifier = SpeakerIdentifier(
+            llm_model_name=llm_model_name,
+            llm_provider=llm_provider
+        )
         
         logger.info(f"初始化组合转录器，ASR提供者: {asr_provider}，ASR模型: {asr_model_name}，分离提供者: {diarization_provider}，分离模型: {diarization_model_name}，分割批处理大小: {segmentation_batch_size}，并行执行: {parallel}，推理设备: {device}")
     
@@ -413,8 +431,8 @@ class CombinedTranscriber:
     def transcribe_podcast(
         self, 
         audio: AudioSegment, 
-        podcast_info: Optional[PodcastChannel] = None,
-        episode_info: Optional[PodcastEpisode] = None,
+        podcast_info: PodcastChannel,
+        episode_info: PodcastEpisode,
     ) -> CombinedTranscriptionResult:
         """
         专门针对播客剧集的音频转录方法
@@ -431,15 +449,14 @@ class CombinedTranscriber:
         
         # 1. 先执行基础转录流程
         transcription_result = self.transcribe(audio)
-        
-        # 2. 分别判断播客信息和LLM客户端是否提供
-        if not podcast_info:
-            logger.info("未提供播客信息，无法识别说话人名称")
-            return transcription_result
-        
+
         # 3. 识别说话人名称
         logger.info("识别说话人名称...")
-        
+        speaker_name_map = self.speaker_identifier.recognize_speaker_names(
+            transcription_result.segments,
+            podcast_info,
+            episode_info
+        )
         
         # 4. 将识别的说话人名称添加到转录结果中
         enhanced_segments_with_names = []
@@ -470,10 +487,10 @@ class CombinedTranscriber:
 
 def transcribe_audio(
     audio_segment: AudioSegment,
-    asr_model_name: Optional[str] = None,
-    asr_provider: Optional[str] = None,
-    diarization_provider: Optional[str] = None,
-    diarization_model_name: Optional[str] = None,
+    asr_model_name: str = "distil-whisper/distil-large-v3.5",
+    asr_provider: str = "distil_whisper_transformers",
+    diarization_model_name: str = "pyannote/speaker-diarization-3.1",
+    diarization_provider: str = "pyannote_transformers",
     hf_token: Optional[str] = None,
     device: Optional[str] = None,
     segmentation_batch_size: int = 64,
@@ -486,8 +503,8 @@ def transcribe_audio(
         audio_segment: 输入的AudioSegment对象
         asr_model_name: ASR模型名称
         asr_provider: ASR提供者名称
-        diarization_provider: 说话人分离提供者名称
         diarization_model_name: 说话人分离模型名称
+        diarization_provider: 说话人分离提供者名称
         hf_token: Hugging Face令牌
         device: 推理设备，'cpu'或'cuda'
         segmentation_batch_size: 分割批处理大小，默认为64
@@ -501,8 +518,8 @@ def transcribe_audio(
     transcriber = CombinedTranscriber(
         asr_model_name=asr_model_name,
         asr_provider=asr_provider,
-        diarization_provider=diarization_provider,
         diarization_model_name=diarization_model_name,
+        diarization_provider=diarization_provider,
         hf_token=hf_token,
         device=device,
         segmentation_batch_size=segmentation_batch_size,
@@ -514,12 +531,12 @@ def transcribe_audio(
 
 def transcribe_podcast_audio(
     audio_segment: AudioSegment,
-    podcast_info: Optional[PodcastChannel] = None,
-    episode_info: Optional[PodcastEpisode] = None,
-    asr_model_name: Optional[str] = None,
-    asr_provider: Optional[str] = None,
-    diarization_provider: Optional[str] = None,
-    diarization_model_name: Optional[str] = None,
+    podcast_info: PodcastChannel,
+    episode_info: PodcastEpisode,
+    asr_model_name: str = "distil-whisper/distil-large-v3.5",
+    asr_provider: str = "distil_whisper_transformers",
+    diarization_model_name: str = "pyannote/speaker-diarization-3.1",
+    diarization_provider: str = "pyannote_transformers",
     llm_model_name: Optional[str] = None,
     llm_provider: Optional[str] = None,
     hf_token: Optional[str] = None,
