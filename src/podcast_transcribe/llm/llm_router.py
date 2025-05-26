@@ -24,7 +24,7 @@ class LLMRouter:
         
         # 定义支持的provider配置
         self._provider_configs = {
-            "mlx": {
+            "gemma-mlx": {
                 "module_path": "llm_gemma_mlx",
                 "class_name": "GemmaMLXChatCompletion",
                 "default_model": "mlx-community/gemma-3-12b-it-4bit-DWQ",
@@ -44,7 +44,7 @@ class LLMRouter:
             "phi4-transformers": {
                 "module_path": "llm_phi4_transfomers",
                 "class_name": "Phi4TransformersChatCompletion",
-                "default_model": "microsoft/Phi-4-mini-reasoning",
+                "default_model": "microsoft/Phi-4-reasoning",
                 "supported_params": [
                     "model_name", "use_4bit_quantization", "device_map", 
                     "device", "trust_remote_code", "enable_reasoning"
@@ -370,7 +370,7 @@ _router = LLMRouter()
 
 def chat_completion(
     messages: List[Dict[str, str]],
-    provider: str = "mlx",
+    provider: str = "gemma-mlx",
     temperature: float = 0.7,
     max_tokens: int = 2048,
     top_p: float = 1.0,
@@ -387,10 +387,9 @@ def chat_completion(
     参数:
         messages: 消息列表，每个消息包含role和content字段
         provider: LLM提供者，可选值：
-            - "mlx": 基于MLX库的Gemma聊天完成实现
+            - "gemma-mlx": 基于MLX库的Gemma聊天完成实现
             - "gemma-transformers": 基于Transformers库的Gemma聊天完成实现
             - "phi4-transformers": 基于Transformers库的Phi-4推理聊天完成实现
-            - "transformers": 向后兼容别名，等同于gemma-transformers
         temperature: 温度参数，控制生成的随机性 (0.0-2.0)
         max_tokens: 最大生成token数
         top_p: nucleus采样参数 (0.0-1.0)
@@ -408,7 +407,7 @@ def chat_completion(
         # 使用默认MLX实现
         response = chat_completion(
             messages=[{"role": "user", "content": "你好"}],
-            provider="mlx"
+            provider="gemma-mlx"
         )
         
         # 使用Gemma transformers实现
@@ -434,7 +433,7 @@ def chat_completion(
                 {"role": "system", "content": "你是一个有用的助手"},
                 {"role": "user", "content": "请介绍自己"}
             ],
-            provider="mlx",
+            provider="gemma-mlx",
             temperature=0.8,
             max_tokens=1024
         )
@@ -537,7 +536,7 @@ def reasoning_completion(
     )
 
 
-def get_model_info(provider: str = "mlx", **kwargs) -> Dict[str, Any]:
+def get_model_info(provider: str = "gemma-mlx", **kwargs) -> Dict[str, Any]:
     """
     获取模型信息
     

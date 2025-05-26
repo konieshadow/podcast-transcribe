@@ -192,45 +192,17 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
         self.device_map = device_map
         self.trust_remote_code = trust_remote_code
         self.torch_dtype = torch_dtype or torch.float16
-        
-        # 智能设备选择
-        self.device = self._select_device(device)
-        
-        # 调整设备映射配置
-        self._adjust_device_map()
+        self.device = device
         
         # 加载模型和分词器
         self._load_model_and_tokenizer()
-    
-    def _select_device(self, device: Optional[str]) -> torch.device:
-        """智能选择推理设备"""
-        if device:
-            return torch.device(device)
-        else:
-            # 自动选择最佳设备
-            if torch.backends.mps.is_available():
-                return torch.device("mps")
-            elif torch.cuda.is_available():
-                return torch.device("cuda")
-            else:
-                return torch.device("cpu")
-    
-    def _adjust_device_map(self):
-        """根据设备类型调整device_map配置"""
-        if self.device_map == "auto":
-            if self.device.type == "mps":
-                self.device_map = None  # MPS 不支持 device_map，需要手动管理
-            elif self.device.type == "cpu":
-                self.device_map = "cpu"
-            elif self.device.type.startswith("cuda"):
-                self.device_map = "auto"
     
     def _get_quantization_config(self):
         """获取量化配置"""
         if not self.use_4bit_quantization:
             return None
             
-        if self.device.type == "mps":
+        if self.device and self.device.type == "mps":
             print("警告: MPS 设备不支持 4bit 量化，将禁用量化")
             self.use_4bit_quantization = False
             return None
@@ -290,7 +262,7 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
         
         # 处理设备映射
         if self.device_map is not None:
-            if self.device.type == "mps":
+            if self.device and self.device.type == "mps":
                 print("警告: MPS 设备不支持 device_map，将手动管理设备")
             else:
                 model_kwargs["device_map"] = self.device_map
@@ -302,7 +274,7 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
         )
         
         # MPS 或手动设备管理
-        if self.device_map is None or self.device.type == "mps":
+        if self.device_map is None or (self.device and self.device.type == "mps"):
             if not self.use_4bit_quantization:
                 print(f"手动移动模型到设备: {self.device}")
                 self.model = self.model.to(self.device)
@@ -324,7 +296,7 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
         print("请确保模型名称正确且可访问。")
         if self.use_4bit_quantization:
             print("如果使用量化，请确保已安装 bitsandbytes 库: pip install bitsandbytes")
-        if self.device.type == "mps":
+        if self.device and self.device.type == "mps":
             print("MPS 设备注意事项:")
             print("- 不支持 4bit 量化")
             print("- 不支持 device_map")
@@ -344,7 +316,7 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
         inputs = self.tokenizer.encode(prompt_str, return_tensors="pt")
         
         # 移动输入到正确的设备
-        if self.device_map is None or self.device.type == "mps":
+        if self.device_map is None or (self.device and self.device.type == "mps"):
             inputs = inputs.to(self.device)
         
         # 生成参数

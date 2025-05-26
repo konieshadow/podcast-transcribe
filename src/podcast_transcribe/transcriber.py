@@ -15,9 +15,7 @@ import re # 新增导入
 from .asr import asr_router
 from .asr.asr_base import TranscriptionResult
 from .diarization import diarizer_router
-from .schemas import EnhancedSegment, CombinedTranscriptionResult, PodcastChannel, PodcastEpisode, DiarizationResult  # 新增导入
-from .summary.speaker_identify import recognize_speaker_names  # 新增导入
-from .llm.llm_gemma_mlx import GemmaMLXChatCompletion  # 新增导入
+from .schemas import EnhancedSegment, CombinedTranscriptionResult, PodcastChannel, PodcastEpisode, DiarizationResult
 
 # 配置日志
 logger = logging.getLogger("podcast_transcribe")
@@ -31,8 +29,10 @@ class CombinedTranscriber:
         asr_provider: str = "distil_whisper_transformers",
         diarization_provider: str = "pyannote_transformers",
         diarization_model_name: str = "pyannote/speaker-diarization-3.1",
+        llm_model_name: Optional[str] = None,
+        llm_provider: Optional[str] = None,
         hf_token: Optional[str] = None,
-        device: str = "cpu",
+        device: Optional[str] = None,
         segmentation_batch_size: int = 64,
         parallel: bool = False,
     ):
@@ -49,6 +49,15 @@ class CombinedTranscriber:
             segmentation_batch_size: 分割批处理大小，默认为64
             parallel: 是否并行执行ASR和说话人分离，默认为False
         """
+        if not device:
+            import torch
+            if torch.backends.mps.is_available():
+                device = "mps"
+            elif torch.cuda.is_available():
+                device = "cuda"
+            else:
+                device = "cpu"
+
         self.asr_model_name = asr_model_name
         self.asr_provider = asr_provider
         self.diarization_provider = diarization_provider
@@ -58,11 +67,8 @@ class CombinedTranscriber:
         self.segmentation_batch_size = segmentation_batch_size
         self.parallel = parallel
         
-        logger.info(f"初始化组合转录器，ASR提供者: {asr_provider}，ASR模型: {asr_model_name}，分离提供者: {diarization_provider}，分离模型: {diarization_model_name}，分割批处理大小: {segmentation_batch_size}，并行执行: {parallel}")
+        logger.info(f"初始化组合转录器，ASR提供者: {asr_provider}，ASR模型: {asr_model_name}，分离提供者: {diarization_provider}，分离模型: {diarization_model_name}，分割批处理大小: {segmentation_batch_size}，并行执行: {parallel}，推理设备: {device}")
     
-
-
-
     
     def _merge_adjacent_text_segments(self, segments: List[EnhancedSegment]) -> List[EnhancedSegment]:
         """
@@ -409,7 +415,6 @@ class CombinedTranscriber:
         audio: AudioSegment, 
         podcast_info: Optional[PodcastChannel] = None,
         episode_info: Optional[PodcastEpisode] = None,
-        llm_client: Optional[GemmaMLXChatCompletion] = None,
     ) -> CombinedTranscriptionResult:
         """
         专门针对播客剧集的音频转录方法
@@ -418,7 +423,6 @@ class CombinedTranscriber:
             audio: 要转录的AudioSegment对象
             podcast_info: 播客频道信息
             episode_info: 播客剧集信息
-            llm_client: 用于说话人识别的LLM客户端
             
         返回:
             包含完整转录和识别后说话人名称的结果
@@ -432,19 +436,10 @@ class CombinedTranscriber:
         if not podcast_info:
             logger.info("未提供播客信息，无法识别说话人名称")
             return transcription_result
-            
-        if not llm_client:
-            logger.info("未提供LLM客户端，无法识别说话人名称")
-            return transcription_result
         
         # 3. 识别说话人名称
         logger.info("识别说话人名称...")
-        speaker_name_map = recognize_speaker_names(
-            transcription_result.segments,
-            podcast_info,
-            episode_info,
-            llm_client
-        )
+        
         
         # 4. 将识别的说话人名称添加到转录结果中
         enhanced_segments_with_names = []
@@ -475,12 +470,12 @@ class CombinedTranscriber:
 
 def transcribe_audio(
     audio_segment: AudioSegment,
-    asr_model_name: str = "distil-whisper/distil-large-v3.5",
-    asr_provider: str = "distil_whisper_transformers",
-    diarization_provider: str = "pyannote_transformers",
-    diarization_model_name: str = "pyannote/speaker-diarization-3.1",
+    asr_model_name: Optional[str] = None,
+    asr_provider: Optional[str] = None,
+    diarization_provider: Optional[str] = None,
+    diarization_model_name: Optional[str] = None,
     hf_token: Optional[str] = None,
-    device: str = "cpu",
+    device: Optional[str] = None,
     segmentation_batch_size: int = 64,
     parallel: bool = False,
 ) -> CombinedTranscriptionResult: # 返回类型固定为 CombinedTranscriptionResult
@@ -521,13 +516,14 @@ def transcribe_podcast_audio(
     audio_segment: AudioSegment,
     podcast_info: Optional[PodcastChannel] = None,
     episode_info: Optional[PodcastEpisode] = None,
-    asr_model_name: str = "distil-whisper/distil-large-v3.5",
-    asr_provider: str = "distil_whisper_transformers",
-    diarization_provider: str = "pyannote_transformers",
-    diarization_model_name: str = "pyannote/speaker-diarization-3.1",
-    llm_model_name: str = "google/gemma-3-4b-it",
+    asr_model_name: Optional[str] = None,
+    asr_provider: Optional[str] = None,
+    diarization_provider: Optional[str] = None,
+    diarization_model_name: Optional[str] = None,
+    llm_model_name: Optional[str] = None,
+    llm_provider: Optional[str] = None,
     hf_token: Optional[str] = None,
-    device: str = "cpu",
+    device: Optional[str] = None,
     segmentation_batch_size: int = 64,
     parallel: bool = False,
 ) -> CombinedTranscriptionResult:
@@ -543,6 +539,7 @@ def transcribe_podcast_audio(
         diarization_provider: 说话人分离提供者名称
         diarization_model_name: 说话人分离模型名称
         llm_model_name: LLM模型名称，如果为None则无法识别说话人名称
+        llm_provider: LLM提供者名称，如果为None则无法识别说话人名称
         hf_token: Hugging Face令牌
         device: 推理设备，'cpu'或'cuda'
         segmentation_batch_size: 分割批处理大小，默认为64
@@ -558,19 +555,17 @@ def transcribe_podcast_audio(
         asr_provider=asr_provider,
         diarization_provider=diarization_provider,
         diarization_model_name=diarization_model_name,
+        llm_model_name=llm_model_name,
+        llm_provider=llm_provider,
         hf_token=hf_token,
         device=device,
         segmentation_batch_size=segmentation_batch_size,
         parallel=parallel
     )
     
-    # 初始化LLM客户端（如果提供了模型名称）
-    llm_client = GemmaMLXChatCompletion(llm_model_name)
-    
     # 调用播客专用转录方法
     return transcriber.transcribe_podcast(
         audio=audio_segment,
         podcast_info=podcast_info,
         episode_info=episode_info,
-        llm_client=llm_client
     )
