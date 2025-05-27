@@ -209,7 +209,7 @@ class TransformersDistilWhisperTranscriber(DistilWhisperTranscriber):
                 return_timestamps=True,
                 chunk_length_s=30,      # 使用30秒的块长度
                 stride_length_s=5,      # 块之间5秒的重叠
-                batch_size=1,           # 顺序处理
+                batch_size=32,           # 顺序处理
                 # 添加以下参数来减少警告
                 generate_kwargs={
                     "task": "transcribe",
