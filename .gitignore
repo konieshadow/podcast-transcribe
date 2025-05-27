@@ -129,3 +129,4 @@ examples/output/
 
 # temp files
 _temp_*
+.DS_Store
