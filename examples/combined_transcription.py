@@ -27,7 +27,6 @@ def main():
     # 模型配置
     asr_model_name = "distil-whisper/distil-large-v3.5"  # ASR模型名称
     diarization_model_name = "pyannote/speaker-diarization-3.1"  # 说话人分离模型名称
-    hf_token = ""  # Hugging Face API 令牌
     device = "mps"  # 设备类型
     segmentation_batch_size = 64
     parallel = True
@@ -35,12 +34,6 @@ def main():
     # 检查文件是否存在
     if not os.path.exists(audio_file):
         print(f"错误：文件 '{audio_file}' 不存在")
-        return 1
-    
-    # 检查HF令牌
-    if not hf_token:
-        print("警告：未设置HF_TOKEN环境变量，必须设置此环境变量才能使用pyannote说话人分离模型")
-        print("请执行：export HF_TOKEN='你的HuggingFace令牌'")
         return 1
     
     try:
@@ -54,7 +47,6 @@ def main():
             audio, 
             asr_model_name=asr_model_name,
             diarization_model_name=diarization_model_name,
-            hf_token=hf_token,
             device=device,
             segmentation_batch_size=segmentation_batch_size,
             parallel=parallel,

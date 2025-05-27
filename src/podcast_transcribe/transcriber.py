@@ -31,7 +31,6 @@ class CombinedTranscriber:
         diarization_model_name: str,
         llm_model_name: Optional[str] = None,
         llm_provider: Optional[str] = None,
-        hf_token: Optional[str] = None,
         device: Optional[str] = None,
         segmentation_batch_size: int = 64,
         parallel: bool = False,
@@ -44,7 +43,6 @@ class CombinedTranscriber:
             asr_provider: ASR提供者名称
             diarization_provider: 说话人分离提供者名称
             diarization_model_name: 说话人分离模型名称
-            hf_token: Hugging Face令牌
             device: 推理设备，'cpu'或'cuda'
             segmentation_batch_size: 分割批处理大小，默认为64
             parallel: 是否并行执行ASR和说话人分离，默认为False
@@ -75,7 +73,6 @@ class CombinedTranscriber:
         self.asr_provider = asr_provider
         self.diarization_provider = diarization_provider
         self.diarization_model_name = diarization_model_name
-        self.hf_token = hf_token or os.environ.get("HF_TOKEN")
         self.device = device
         self.segmentation_batch_size = segmentation_batch_size
         self.parallel = parallel
@@ -148,7 +145,6 @@ class CombinedTranscriber:
             audio,
             provider=self.diarization_provider,
             model_name=self.diarization_model_name,
-            token=self.hf_token,
             device=self.device,
             segmentation_batch_size=self.segmentation_batch_size
         )
@@ -195,7 +191,6 @@ class CombinedTranscriber:
                 audio,
                 provider=self.diarization_provider,
                 model_name=self.diarization_model_name,
-                token=self.hf_token,
                 device=self.device,
                 segmentation_batch_size=self.segmentation_batch_size
             )
@@ -491,7 +486,6 @@ def transcribe_audio(
     asr_provider: str = "distil_whisper_transformers",
     diarization_model_name: str = "pyannote/speaker-diarization-3.1",
     diarization_provider: str = "pyannote_transformers",
-    hf_token: Optional[str] = None,
     device: Optional[str] = None,
     segmentation_batch_size: int = 64,
     parallel: bool = False,
@@ -505,7 +499,6 @@ def transcribe_audio(
         asr_provider: ASR提供者名称
         diarization_model_name: 说话人分离模型名称
         diarization_provider: 说话人分离提供者名称
-        hf_token: Hugging Face令牌
         device: 推理设备，'cpu'或'cuda'
         segmentation_batch_size: 分割批处理大小，默认为64
         parallel: 是否并行执行ASR和说话人分离，默认为False
@@ -520,7 +513,6 @@ def transcribe_audio(
         asr_provider=asr_provider,
         diarization_model_name=diarization_model_name,
         diarization_provider=diarization_provider,
-        hf_token=hf_token,
         device=device,
         segmentation_batch_size=segmentation_batch_size,
         parallel=parallel
@@ -539,7 +531,6 @@ def transcribe_podcast_audio(
     diarization_provider: str = "pyannote_transformers",
     llm_model_name: Optional[str] = None,
     llm_provider: Optional[str] = None,
-    hf_token: Optional[str] = None,
     device: Optional[str] = None,
     segmentation_batch_size: int = 64,
     parallel: bool = False,
@@ -557,7 +548,6 @@ def transcribe_podcast_audio(
         diarization_model_name: 说话人分离模型名称
         llm_model_name: LLM模型名称，如果为None则无法识别说话人名称
         llm_provider: LLM提供者名称，如果为None则无法识别说话人名称
-        hf_token: Hugging Face令牌
         device: 推理设备，'cpu'或'cuda'
         segmentation_batch_size: 分割批处理大小，默认为64
         parallel: 是否并行执行ASR和说话人分离，默认为False
@@ -574,7 +564,6 @@ def transcribe_podcast_audio(
         diarization_model_name=diarization_model_name,
         llm_model_name=llm_model_name,
         llm_provider=llm_provider,
-        hf_token=hf_token,
         device=device,
         segmentation_batch_size=segmentation_batch_size,
         parallel=parallel

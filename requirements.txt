@@ -18,5 +18,4 @@ accelerate>=1.6.0
 # MLX特定依赖 - 仅适用于Apple Silicon Mac
 # mlx>=0.25.2
 # mlx-lm>=0.24.0
-# parakeet-mlx>=0.2.6
 # mlx-whisper>=0.4.2

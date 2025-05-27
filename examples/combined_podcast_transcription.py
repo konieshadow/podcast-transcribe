@@ -20,10 +20,9 @@ def main():
     # audio_file = Path("/Users/konie/Desktop/voices/lex_ai_john_carmack_30.wav")
     
     # 模型配置
-    asr_model_name = "mlx-community/parakeet-tdt-0.6b-v2"  # ASR模型名称
+    asr_model_name = "mlx-community/"  # ASR模型名称
     diarization_model_name = "pyannote/speaker-diarization-3.1"  # 说话人分离模型名称
     llm_model_path = "mlx-community/gemma-3-12b-it-4bit-DWQ"
-    hf_token = ""  # Hugging Face API 令牌
     device = "mps"  # 设备类型
     segmentation_batch_size = 64
     parallel = True
@@ -31,12 +30,6 @@ def main():
     # 检查文件是否存在
     if not os.path.exists(audio_file):
         print(f"错误：文件 '{audio_file}' 不存在")
-        return 1
-    
-    # 检查HF令牌
-    if not hf_token:
-        print("警告：未设置HF_TOKEN环境变量，必须设置此环境变量才能使用pyannote说话人分离模型")
-        print("请执行：export HF_TOKEN='你的HuggingFace令牌'")
         return 1
     
     try:
@@ -67,7 +60,6 @@ def main():
     result = transcribe_podcast_audio(audio,
                              podcast_info=mock_podcast_info,
                              episode_info=mock_episode_info,
-                             hf_token=hf_token,
                              asr_model_name=asr_model_name,
                              diarization_model_name=diarization_model_name,
                              llm_model_name=llm_model_path,

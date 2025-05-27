@@ -4,13 +4,11 @@ ASR模型调用路由器
 """
 
 import logging
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Literal, Optional, Callable
 from pydub import AudioSegment
 import spaces
 from .asr_base import TranscriptionResult
-from . import asr_parakeet_mlx
-from . import asr_distil_whisper_mlx
-from . import asr_distil_whisper_transformers
+from . import asr_distil_whisper
 
 # 配置日志
 logger = logging.getLogger("asr")
@@ -26,22 +24,8 @@ class ASRRouter:
         
         # 定义支持的provider配置
         self._provider_configs = {
-            "parakeet_mlx": {
-                "module_path": "asr_parakeet_mlx",
-                "function_name": "transcribe_audio",
-                "default_model": "mlx-community/parakeet-tdt-0.6b-v2",
-                "supported_params": ["model_name"],
-                "description": "基于MLX的Parakeet模型"
-            },
-            "distil_whisper_mlx": {
-                "module_path": "asr_distil_whisper_mlx", 
-                "function_name": "transcribe_audio",
-                "default_model": "mlx-community/distil-whisper-large-v3",
-                "supported_params": ["model_name"],
-                "description": "基于MLX的Distil Whisper模型"
-            },
             "distil_whisper_transformers": {
-                "module_path": "asr_distil_whisper_transformers",
+                "module_path": "asr_distil_whisper",
                 "function_name": "transcribe_audio", 
                 "default_model": "distil-whisper/distil-large-v3.5",
                 "supported_params": ["model_name", "device"],
@@ -66,15 +50,8 @@ class ASRRouter:
             module_path = self._provider_configs[provider]["module_path"]
             logger.info(f"获取模块: {module_path}")
             
-            # 根据module_path返回对应的模块
-            if module_path == "asr_parakeet_mlx":
-                module = asr_parakeet_mlx
-            elif module_path == "asr_distil_whisper_mlx":
-                module = asr_distil_whisper_mlx
-            elif module_path == "asr_distil_whisper_transformers":
-                module = asr_distil_whisper_transformers
-            else:
-                raise ImportError(f"未找到模块: {module_path}")
+            # 所有provider现在都指向同一个模块
+            module = asr_distil_whisper
             
             self._loaded_modules[provider] = module
             logger.info(f"模块 {module_path} 获取成功")
@@ -202,51 +179,17 @@ def transcribe_audio(
     provider: str = "distil_whisper_transformers",
     model_name: Optional[str] = None,
     device: str = "cpu",
+    backend: str = "transformers",
     **kwargs
 ) -> TranscriptionResult:
-    """
-    统一的音频转录接口函数
-    
-    参数:
-        audio_segment: 输入的AudioSegment对象
-        provider: ASR提供者，可选值：
-            - "parakeet_mlx": 基于MLX的Parakeet模型
-            - "distil_whisper_mlx": 基于MLX的Distil Whisper模型  
-            - "distil_whisper_transformers": 基于Transformers的Distil Whisper模型
-        model_name: 模型名称，如果不指定则使用默认模型
-        device: 推理设备，仅对transformers provider有效
-        **kwargs: 其他参数
-        
-    返回:
-        TranscriptionResult对象，包含转录的文本、分段和语言
-        
-    示例:
-        # 使用默认MLX Distil Whisper模型
-        result = transcribe_audio(audio_segment, provider="distil_whisper_mlx")
-        
-        # 使用Parakeet模型
-        result = transcribe_audio(audio_segment, provider="parakeet_mlx")
-        
-        # 使用Transformers模型并指定设备
-        result = transcribe_audio(
-            audio_segment, 
-            provider="distil_whisper_transformers",
-            device="cuda"
-        )
-        
-        # 使用自定义模型
-        result = transcribe_audio(
-            audio_segment,
-            provider="distil_whisper_mlx", 
-            model_name="mlx-community/whisper-large-v3"
-        )
-    """
     # 准备参数
     params = kwargs.copy()
     if model_name is not None:
         params["model_name"] = model_name
     if device != "cpu":
         params["device"] = device
+    if backend is not None:
+        params["backend"] = backend
     
     return _router.transcribe(audio_segment, provider, **params)
 

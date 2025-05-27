@@ -34,7 +34,6 @@ class BaseDiarizer(ABC):
             segmentation_batch_size: 分割批处理大小，默认为32
         """
         self.model_name = model_name
-        self.token = token or os.environ.get("HF_TOKEN")
         self.device = device
         self.segmentation_batch_size = segmentation_batch_size
         

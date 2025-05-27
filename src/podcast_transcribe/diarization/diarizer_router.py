@@ -215,20 +215,18 @@ def diarize_audio(
         
     示例:
         # 使用默认pyannote MLX实现
-        result = diarize_audio(audio_segment, provider="pyannote_mlx", token="your_hf_token")
+        result = diarize_audio(audio_segment, provider="pyannote_mlx")
         
         # 使用transformers实现
         result = diarize_audio(
             audio_segment, 
             provider="pyannote_transformers",
-            token="your_hf_token"
         )
         
         # 使用GPU设备
         result = diarize_audio(
             audio_segment,
             provider="pyannote_mlx",
-            token="your_hf_token",
             device="cuda"
         )
         
@@ -236,7 +234,6 @@ def diarize_audio(
         result = diarize_audio(
             audio_segment,
             provider="pyannote_mlx", 
-            token="your_hf_token",
             segmentation_batch_size=64
         )
     """

@@ -22,17 +22,11 @@ def main():
     audio_file = Path.joinpath(Path(__file__).parent, "input", "lex_ai_john_carmack_1.wav")  # 播客音频文件路径
     # audio_file = "/Users/konie/Desktop/voices/history_in_the_baking.mp3"  # 播客音频文件路径
     model_name = "pyannote/speaker-diarization-3.1"  # 说话人分离模型名称
-    hf_token = ""  # Hugging Face API 令牌
     device = "mps"  # 设备类型
     
     # 检查文件是否存在
     if not os.path.exists(audio_file):
         print(f"错误：文件 '{audio_file}' 不存在")
-        return 1
-    
-    # 检查令牌是否设置
-    if not hf_token:
-        print("错误：未设置HF_TOKEN环境变量，请设置后再运行")
         return 1
     
     try:
@@ -46,12 +40,12 @@ def main():
         if "pyannote/speaker-diarization" in model_name:
             # 使用transformers版本进行说话人分离
             print(f"使用transformers版本处理模型: {model_name}")
-            result = diarize_audio_transformers(audio, model_name=model_name, token=hf_token, device=device, segmentation_batch_size=128)
+            result = diarize_audio_transformers(audio, model_name=model_name, device=device, segmentation_batch_size=128)
             version_name = "Transformers"
         else:
             # 使用MLX版本进行说话人分离
             print(f"使用MLX版本处理模型: {model_name}")
-            result = diarize_audio_mlx(audio, model_name=model_name, token=hf_token, device=device, segmentation_batch_size=128)
+            result = diarize_audio_mlx(audio, model_name=model_name, device=device, segmentation_batch_size=128)
             version_name = "MLX"
         
         # 输出结果

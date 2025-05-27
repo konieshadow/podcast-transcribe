@@ -14,39 +14,24 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.podcast_transcribe.audio import load_audio
+from src.podcast_transcribe.asr.asr_distil_whisper import transcribe_audio
 
 logger = logging.getLogger("asr_example")
 
 
 def main():
     """主函数"""
-    # audio_file = Path.joinpath(Path(__file__).parent, "input", "lex_ai_john_carmack_1.wav")  # 播客音频文件路径
+    audio_file = Path.joinpath(Path(__file__).parent, "input", "lex_ai_john_carmack_1.wav")  # 播客音频文件路径
     # audio_file = "/Users/konie/Desktop/voices/lex_ai_john_carmack_30.wav"  # 播客音频文件路径
-    audio_file = "/Users/konie/Desktop/voices/podcast1_1.wav"
+    # audio_file = "/Users/konie/Desktop/voices/podcast1_1.wav"
     # model = "distil-whisper"
-    model = "distil-whisper-transformers"
+    model = "distil-whisper/distil-large-v3.5"
 
-    device = "mlx"
+    device = "mps"
     
     # 检查文件是否存在
     if not os.path.exists(audio_file):
         print(f"错误：文件 '{audio_file}' 不存在")
-        return 1
-    
-    if model == "parakeet":
-        from src.podcast_transcribe.asr.asr_parakeet_mlx import transcribe_audio
-        model_name = "mlx-community/parakeet-tdt-0.6b-v2"
-        logger.info(f"使用Parakeet模型: {model_name}")
-    elif model == "distil-whisper":  # distil-whisper
-        from src.podcast_transcribe.asr.asr_distil_whisper_mlx import transcribe_audio
-        model_name = "mlx-community/distil-whisper-large-v3"
-        logger.info(f"使用Distil Whisper模型: {model_name}")
-    elif model == "distil-whisper-transformers":  # distil-whisper
-        from src.podcast_transcribe.asr.asr_distil_whisper_transformers import transcribe_audio
-        model_name = "distil-whisper/distil-large-v3.5"
-        logger.info(f"使用Distil Whisper模型: {model_name}")
-    else:
-        logger.error(f"错误：未指定模型类型")
         return 1
     
     try:
@@ -58,7 +43,7 @@ def main():
         
         # 进行转录
         print("开始转录...")
-        result = transcribe_audio(audio, model_name=model_name, device=device)
+        result = transcribe_audio(audio, model_name=model, device=device)
         
         # 输出结果
         print("\n转录结果:")

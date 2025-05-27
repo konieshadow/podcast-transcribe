@@ -48,9 +48,6 @@ class PyannoteTranscriber(BaseDiarizer):
             except ImportError:
                 raise ImportError("请先安装pyannote.audio库: pip install pyannote.audio")
                 
-            if not self.token:
-                raise ValueError("需要提供Hugging Face令牌才能使用pyannote模型。请通过参数传入或设置HF_TOKEN环境变量。")
-                
             logger.info(f"开始加载模型 {self.model_name}")
             self.pipeline = Pipeline.from_pretrained(
                 self.model_name,
