@@ -6,6 +6,7 @@ ASR模型调用路由器
 import logging
 from typing import Dict, Any, Optional, Callable
 from pydub import AudioSegment
+import spaces
 from .asr_base import TranscriptionResult
 from . import asr_parakeet_mlx
 from . import asr_distil_whisper_mlx
@@ -195,7 +196,7 @@ class ASRRouter:
 # 创建全局路由器实例
 _router = ASRRouter()
 
-
+@spaces.GPU(duration=180)
 def transcribe_audio(
     audio_segment: AudioSegment,
     provider: str = "distil_whisper_transformers",

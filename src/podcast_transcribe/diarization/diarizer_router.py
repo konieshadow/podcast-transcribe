@@ -6,6 +6,7 @@
 import logging
 from typing import Dict, Any, Optional, Callable
 from pydub import AudioSegment
+import spaces
 from ..schemas import DiarizationResult
 from . import diarization_pyannote_mlx
 from . import diarization_pyannote_transformers
@@ -185,7 +186,7 @@ class DiarizerRouter:
 # 创建全局路由器实例
 _router = DiarizerRouter()
 
-
+@spaces.GPU(duration=180)
 def diarize_audio(
     audio_segment: AudioSegment,
     provider: str = "pyannote_mlx",

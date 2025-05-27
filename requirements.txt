@@ -2,12 +2,13 @@ pydub>=0.25.1
 numpy>=2.2.5
 pyannote.audio>=3.3.2
 transformers>=4.51.3
-torch>=2.5.1
-torchaudio>=2.5.1
+torch==2.5.1
+torchaudio==2.5.1
 soundfile>=0.13.1
 feedparser>=6.0.11
 requests>=2.32.3
 gradio>=5.30.0
+spaces>=0.36.0
 
 # 可选依赖 - whisper.cpp 绑定
 pywhispercpp>=1.3.0
@@ -17,5 +18,5 @@ accelerate>=1.6.0
 # MLX特定依赖 - 仅适用于Apple Silicon Mac
 # mlx>=0.25.2
 # mlx-lm>=0.24.0
-# parakeet-mlx=0.2.6
-# mlx-whisper=0.4.2
+# parakeet-mlx>=0.2.6
+# mlx-whisper>=0.4.2

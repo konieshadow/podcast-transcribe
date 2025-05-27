@@ -5,6 +5,8 @@ LLM模型调用路由器
 
 import logging
 from typing import Dict, Any, Optional, List, Union
+
+import spaces
 from .llm_base import BaseChatCompletion
 from . import llm_gemma_mlx
 from . import llm_gemma_transfomers
@@ -367,7 +369,7 @@ class LLMRouter:
 # 创建全局路由器实例
 _router = LLMRouter()
 
-
+@spaces.GPU(duration=60)
 def chat_completion(
     messages: List[Dict[str, str]],
     provider: str = "gemma-mlx",
@@ -461,7 +463,7 @@ def chat_completion(
         **params
     )
 
-
+@spaces.GPU(duration=60)
 def reasoning_completion(
     messages: List[Dict[str, str]],
     provider: str = "phi4-transformers",
