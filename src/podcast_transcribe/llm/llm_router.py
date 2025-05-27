@@ -36,7 +36,7 @@ class LLMRouter:
             "gemma-transformers": {
                 "module_path": "llm_gemma_transfomers",
                 "class_name": "GemmaTransformersChatCompletion",
-                "default_model": "google/gemma-3-12b-it",
+                "default_model": "google/gemma-3-4b-it",
                 "supported_params": [
                     "model_name", "use_4bit_quantization", "device_map", 
                     "device", "trust_remote_code"
@@ -416,7 +416,7 @@ def chat_completion(
         response = chat_completion(
             messages=[{"role": "user", "content": "你好"}],
             provider="gemma-transformers",
-            model="google/gemma-3-12b-it",
+            model="google/gemma-3-4b-it",
             device="cuda",
             use_4bit_quantization=True
         )

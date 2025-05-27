@@ -9,7 +9,7 @@ class GemmaTransformersChatCompletion(TransformersBaseChatCompletion):
     
     def __init__(
         self,
-        model_name: str = "google/gemma-3-12b-it",
+        model_name: str = "google/gemma-3-4b-it",
         use_4bit_quantization: bool = False,
         device_map: Optional[str] = "auto",
         device: Optional[str] = None,
@@ -36,7 +36,7 @@ class GemmaTransformersChatCompletion(TransformersBaseChatCompletion):
 
 # 为了保持向后兼容性，也可以提供一个简化的工厂函数
 def create_gemma_transformers_client(
-    model_name: str = "google/gemma-3-12b-it",
+    model_name: str = "google/gemma-3-4b-it",
     use_4bit_quantization: bool = False,
     device: Optional[str] = None,
     **kwargs

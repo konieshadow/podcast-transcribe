@@ -61,13 +61,13 @@ class CombinedTranscriber:
             elif torch.cuda.is_available():
                 device = "cuda"
                 if not llm_model_name:
-                    llm_model_name = "google/gemma-3-12b-it"
+                    llm_model_name = "google/gemma-3-4b-it"
                 if not llm_provider:
                     llm_provider = "gemma-transformers"
             else:
                 device = "cpu"
                 if not llm_model_name:
-                    llm_model_name = "google/gemma-3-12b-it"
+                    llm_model_name = "google/gemma-3-4b-it"
                 if not llm_provider:
                     llm_provider = "gemma-transformers"
 
