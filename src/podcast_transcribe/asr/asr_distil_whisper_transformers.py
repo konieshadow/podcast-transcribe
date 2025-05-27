@@ -47,8 +47,8 @@ class TransformersDistilWhisperTranscriber(BaseTranscriber):
                 model=self.model_name,
                 device=0 if self.device == "cuda" else -1,
                 return_timestamps=True,
-                chunk_length_s=30,
-                batch_size=16,
+                chunk_length_s=25,
+                batch_size=32,
             )
             logger.info(f"模型加载成功")
         except Exception as e:
