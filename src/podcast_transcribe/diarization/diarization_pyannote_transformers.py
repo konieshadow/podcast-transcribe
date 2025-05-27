@@ -54,7 +54,6 @@ class PyannoteTransformersTranscriber(BaseDiarizer):
             # 使用pyannote.audio Pipeline加载说话人分离模型
             self.pipeline = Pipeline.from_pretrained(
                 self.model_name,
-                use_auth_token=self.token
             )
             
             # 设置设备
