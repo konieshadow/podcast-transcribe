@@ -379,7 +379,7 @@ def chat_completion(
     model: Optional[str] = None,
     device: Optional[str] = None,
     use_4bit_quantization: bool = False,
-    device_map: Optional[str] = "auto",
+    device_map: Optional[str] = None,
     trust_remote_code: bool = True,
     **kwargs
 ) -> Dict[str, Any]:
@@ -448,7 +448,7 @@ def chat_completion(
         params["device"] = device
     if use_4bit_quantization:
         params["use_4bit_quantization"] = use_4bit_quantization
-    if device_map != "auto":
+    if device_map:
         params["device_map"] = device_map
     if not trust_remote_code:
         params["trust_remote_code"] = trust_remote_code
@@ -473,7 +473,7 @@ def reasoning_completion(
     model: Optional[str] = None,
     device: Optional[str] = None,
     use_4bit_quantization: bool = False,
-    device_map: Optional[str] = "auto",
+    device_map: Optional[str] = None,
     trust_remote_code: bool = True,
     extract_reasoning_steps: bool = True,
     **kwargs
@@ -521,7 +521,7 @@ def reasoning_completion(
         params["device"] = device
     if use_4bit_quantization:
         params["use_4bit_quantization"] = use_4bit_quantization
-    if device_map != "auto":
+    if device_map:
         params["device_map"] = device_map
     if not trust_remote_code:
         params["trust_remote_code"] = trust_remote_code

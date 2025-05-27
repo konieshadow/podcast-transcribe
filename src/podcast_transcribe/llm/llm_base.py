@@ -182,7 +182,7 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
         self,
         model_name: str,
         use_4bit_quantization: bool = False,
-        device_map: Optional[str] = "auto",
+        device_map: Optional[str] = None,
         device: Optional[str] = None,
         trust_remote_code: bool = True,
         torch_dtype: Optional[torch.dtype] = None
