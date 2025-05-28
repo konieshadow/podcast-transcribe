@@ -226,76 +226,6 @@ class LLMRouter:
             logger.error(f"使用provider '{provider}' 进行聊天完成失败: {str(e)}", exc_info=True)
             raise RuntimeError(f"聊天完成失败: {str(e)}")
     
-    def reasoning_completion(
-        self,
-        messages: List[Dict[str, str]],
-        provider: str = "gemma-transformers",
-        temperature: float = 0.3,
-        max_tokens: int = 2048,
-        top_p: float = 0.9,
-        model: Optional[str] = None,
-        extract_reasoning_steps: bool = True,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """
-        专门用于推理任务的聊天完成接口
-        
-        参数:
-            messages: 消息列表，每个消息包含role和content
-            provider: LLM提供者名称，默认使用gemma-transformers
-            temperature: 温度参数（推理任务建议使用较低值）
-            max_tokens: 最大生成token数
-            top_p: nucleus采样参数
-            model: 可选的模型名称
-            extract_reasoning_steps: 是否提取推理步骤
-            **kwargs: 其他参数
-            
-        返回:
-            包含推理步骤的响应字典
-        """
-        logger.info(f"使用provider '{provider}' 进行推理完成，消息数量: {len(messages)}")
-        
-        # 确保使用支持推理的provider
-        if provider not in ["gemma-transformers"]:
-            logger.warning(f"Provider '{provider}' 可能不支持推理功能，建议使用 'gemma-transformers'")
-        
-        try:
-            # 如果提供了model参数，添加到kwargs中
-            if model is not None:
-                kwargs["model_name"] = model
-            
-            # 获取或创建LLM实例
-            llm_instance = self._get_or_create_instance(provider, **kwargs)
-            
-            # 检查实例是否支持推理完成
-            if hasattr(llm_instance, 'reasoning_completion'):
-                result = llm_instance.reasoning_completion(
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p,
-                    extract_reasoning_steps=extract_reasoning_steps,
-                    **kwargs
-                )
-            else:
-                # 回退到普通聊天完成
-                logger.warning(f"Provider '{provider}' 不支持推理完成，回退到普通聊天完成")
-                result = llm_instance.create(
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p,
-                    model=model,
-                    **kwargs
-                )
-            
-            logger.info(f"推理完成成功，使用tokens: {result.get('usage', {}).get('total_tokens', 'unknown')}")
-            return result
-            
-        except Exception as e:
-            logger.error(f"使用provider '{provider}' 进行推理完成失败: {str(e)}", exc_info=True)
-            raise RuntimeError(f"推理完成失败: {str(e)}")
-    
     def get_model_info(self, provider: str, **kwargs) -> Dict[str, Any]:
         """
         获取模型信息
@@ -356,7 +286,7 @@ class LLMRouter:
 # 创建全局路由器实例
 _router = LLMRouter()
 
-@spaces.GPU(duration=60)
+@spaces.GPU(duration=180)
 def chat_completion(
     messages: List[Dict[str, str]],
     provider: str = "gemma-transformers",
@@ -429,72 +359,6 @@ def chat_completion(
         max_tokens=max_tokens,
         top_p=top_p,
         model=model,
-        **params
-    )
-
-@spaces.GPU(duration=60)
-def reasoning_completion(
-    messages: List[Dict[str, str]],
-    provider: str = "gemma-transformers",
-    temperature: float = 0.3,
-    max_tokens: int = 2048,
-    top_p: float = 0.9,
-    model: Optional[str] = None,
-    device: Optional[str] = None,
-    device_map: Optional[str] = None,
-    extract_reasoning_steps: bool = True,
-    **kwargs
-) -> Dict[str, Any]:
-    """
-    专门用于推理任务的聊天完成接口函数
-    
-    参数:
-        messages: 消息列表，每个消息包含role和content字段
-        provider: LLM提供者，默认使用gemma-transformers
-        temperature: 温度参数（推理任务建议使用较低值）
-        max_tokens: 最大生成token数
-        top_p: nucleus采样参数
-        model: 模型名称，如果不指定则使用默认模型
-        device: 推理设备
-        device_map: 设备映射配置
-        extract_reasoning_steps: 是否提取推理步骤
-        **kwargs: 其他参数
-        
-    返回:
-        包含推理步骤的响应字典
-        
-    示例:
-        # 数学推理任务
-        response = reasoning_completion(
-            messages=[{"role": "user", "content": "解这个方程：3x + 7 = 22"}],
-            provider="gemma-transformers",
-            extract_reasoning_steps=True
-        )
-        
-        # 逻辑推理任务
-        response = reasoning_completion(
-            messages=[{"role": "user", "content": "如果所有的猫都是动物，而小花是一只猫，那么小花是什么？"}],
-            provider="gemma-transformers",
-            temperature=0.2
-        )
-    """
-    # 准备参数
-    params = kwargs.copy()
-    if model is not None:
-        params["model_name"] = model
-    if device is not None:
-        params["device"] = device
-    if device_map:
-        params["device_map"] = device_map
-    
-    return _router.reasoning_completion(
-        messages=messages,
-        provider=provider,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        top_p=top_p,
-        model=model,
-        extract_reasoning_steps=extract_reasoning_steps,
         **params
     )
 
