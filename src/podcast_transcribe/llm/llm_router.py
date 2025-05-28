@@ -38,7 +38,7 @@ class LLMRouter:
                 "class_name": "GemmaTransformersChatCompletion",
                 "default_model": "google/gemma-3-4b-it",
                 "supported_params": [
-                    "model_name", "device_map", 
+                    "model_name", "device_map", "device"
                 ],
                 "description": "基于Transformers库的Gemma聊天完成实现"
             }

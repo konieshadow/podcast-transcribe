@@ -178,6 +178,7 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
         device: Optional[str] = None,
     ):
         super().__init__(model_name)
+        torch.set_float32_matmul_precision('high') # 设置 TensorFloat32 精度
         self.device_map = device_map
         self.device = device
         
