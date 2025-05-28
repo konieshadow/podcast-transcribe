@@ -15,17 +15,15 @@ if __name__ == "__main__":
     try:
         # model_name = "mlx-community/gemma-3-12b-it-4bit-DWQ"
         model_name = "google/gemma-3-4b-it"
-        use_4bit_quantization = False
-        device = "mps"
+        device = "cuda"
 
         # gemma_chat = GemmaMLXChatCompletion(model_name="mlx-community/gemma-3-12b-it-4bit-DWQ")
         # 或者，如果您有更小、更快的模型，可以尝试使用，例如："mlx-community/gemma-2b-it-8bit"
         if model_name.startswith("mlx-community"):
             gemma_chat = GemmaMLXChatCompletion(model_name=model_name)
         else:
-            # 如果设备是 mps，则使用 float32 以增加稳定性
-            dtype_to_use = torch.float32 if device == "mps" else torch.float16
-            gemma_chat = GemmaTransformersChatCompletion(model_name=model_name, use_4bit_quantization=use_4bit_quantization, device=device, torch_dtype=dtype_to_use)
+            # 如果设备是 mps 或 cuda，则使用 float32 以增加稳定性
+            gemma_chat = GemmaTransformersChatCompletion(model_name=model_name, device=device)
 
         print("\n--- 示例 1: 简单用户查询 ---")
         messages_example1 = [

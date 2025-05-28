@@ -38,8 +38,7 @@ class LLMRouter:
                 "class_name": "GemmaTransformersChatCompletion",
                 "default_model": "google/gemma-3-4b-it",
                 "supported_params": [
-                    "model_name", "use_4bit_quantization", "device_map", 
-                    "device", "trust_remote_code", "torch_dtype"
+                    "model_name", "device_map", 
                 ],
                 "description": "基于Transformers库的Gemma聊天完成实现"
             }
@@ -191,7 +190,7 @@ class LLMRouter:
             max_tokens: 最大生成token数
             top_p: nucleus采样参数
             model: 可选的模型名称，如果提供则覆盖默认model_name
-            **kwargs: 其他参数，如device、use_4bit_quantization等
+            **kwargs: 其他参数，如device等
             
         返回:
             聊天完成响应字典
@@ -206,12 +205,6 @@ class LLMRouter:
             # 如果提供了model参数，添加到kwargs中
             if model is not None:
                 kwargs["model_name"] = model
-            
-            # 如果设备是 mps，并且是 transformers provider，则强制使用 float32
-            current_device = kwargs.get("device")
-            if current_device == "mps":
-                if provider == "gemma-transformers":
-                    kwargs["torch_dtype"] = torch.float32
             
             # 获取或创建LLM实例
             llm_instance = self._get_or_create_instance(provider, **kwargs)
@@ -270,12 +263,6 @@ class LLMRouter:
             # 如果提供了model参数，添加到kwargs中
             if model is not None:
                 kwargs["model_name"] = model
-            
-            # 如果设备是 mps，并且是 transformers provider，则强制使用 float32
-            current_device = kwargs.get("device")
-            if current_device == "mps":
-                if provider == "gemma-transformers":
-                    kwargs["torch_dtype"] = torch.float32
             
             # 获取或创建LLM实例
             llm_instance = self._get_or_create_instance(provider, **kwargs)
@@ -378,9 +365,7 @@ def chat_completion(
     top_p: float = 1.0,
     model: Optional[str] = None,
     device: Optional[str] = None,
-    use_4bit_quantization: bool = False,
     device_map: Optional[str] = None,
-    trust_remote_code: bool = True,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -396,9 +381,7 @@ def chat_completion(
         top_p: nucleus采样参数 (0.0-1.0)
         model: 模型名称，如果不指定则使用默认模型
         device: 推理设备，'cpu'、'cuda'、'mps'（仅transformers provider支持）
-        use_4bit_quantization: 是否使用4bit量化（仅transformers provider支持）
         device_map: 设备映射配置（仅transformers provider支持）
-        trust_remote_code: 是否信任远程代码（仅transformers provider支持）
         **kwargs: 其他参数
         
     返回:
@@ -417,7 +400,6 @@ def chat_completion(
             provider="gemma-transformers",
             model="google/gemma-3-4b-it",
             device="cuda",
-            use_4bit_quantization=True
         )
         
         # 自定义参数
@@ -437,12 +419,8 @@ def chat_completion(
         params["model_name"] = model
     if device is not None:
         params["device"] = device
-    if use_4bit_quantization:
-        params["use_4bit_quantization"] = use_4bit_quantization
     if device_map:
         params["device_map"] = device_map
-    if not trust_remote_code:
-        params["trust_remote_code"] = trust_remote_code
     
     return _router.chat_completion(
         messages=messages,
@@ -463,9 +441,7 @@ def reasoning_completion(
     top_p: float = 0.9,
     model: Optional[str] = None,
     device: Optional[str] = None,
-    use_4bit_quantization: bool = False,
     device_map: Optional[str] = None,
-    trust_remote_code: bool = True,
     extract_reasoning_steps: bool = True,
     **kwargs
 ) -> Dict[str, Any]:
@@ -480,9 +456,7 @@ def reasoning_completion(
         top_p: nucleus采样参数
         model: 模型名称，如果不指定则使用默认模型
         device: 推理设备
-        use_4bit_quantization: 是否使用4bit量化
         device_map: 设备映射配置
-        trust_remote_code: 是否信任远程代码
         extract_reasoning_steps: 是否提取推理步骤
         **kwargs: 其他参数
         
@@ -510,12 +484,8 @@ def reasoning_completion(
         params["model_name"] = model
     if device is not None:
         params["device"] = device
-    if use_4bit_quantization:
-        params["use_4bit_quantization"] = use_4bit_quantization
     if device_map:
         params["device_map"] = device_map
-    if not trust_remote_code:
-        params["trust_remote_code"] = trust_remote_code
     
     return _router.reasoning_completion(
         messages=messages,

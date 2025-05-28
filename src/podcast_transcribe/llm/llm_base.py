@@ -174,44 +174,15 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
     def __init__(
         self,
         model_name: str,
-        use_4bit_quantization: bool = False,
         device_map: Optional[str] = None,
         device: Optional[str] = None,
-        trust_remote_code: bool = True,
-        torch_dtype: Optional[torch.dtype] = None
     ):
         super().__init__(model_name)
-        self.use_4bit_quantization = use_4bit_quantization
         self.device_map = device_map
-        self.trust_remote_code = trust_remote_code
-        self.torch_dtype = torch_dtype or torch.float16
         self.device = device
         
         # 加载模型和分词器
         self._load_model_and_tokenizer()
-    
-    def _get_quantization_config(self):
-        """获取量化配置"""
-        if not self.use_4bit_quantization:
-            return None
-            
-        if self.device and self.device.type == "mps":
-            print("警告: MPS 设备不支持 4bit 量化，将禁用量化")
-            self.use_4bit_quantization = False
-            return None
-        
-        # 导入量化配置
-        try:
-            from transformers import BitsAndBytesConfig
-        except ImportError:
-            raise ImportError("请先安装 bitsandbytes 库: pip install bitsandbytes")
-        
-        return BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=self.torch_dtype,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_use_double_quant=True,
-        )
     
     def _load_tokenizer(self):
         """加载分词器"""
@@ -222,7 +193,7 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
         
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name,
-            trust_remote_code=self.trust_remote_code
+            trust_remote_code=True
         )
         
         # 设置 pad_token 如果不存在
@@ -237,21 +208,13 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
             raise ImportError("请先安装 transformers 库: pip install transformers")
         
         print(f"正在加载模型: {self.model_name}")
-        print(f"4bit量化: {'启用' if self.use_4bit_quantization else '禁用'}")
         print(f"目标设备: {self.device}")
         print(f"设备映射: {self.device_map}")
         
         # 配置模型加载参数
         model_kwargs = {
-            "trust_remote_code": self.trust_remote_code,
-            "torch_dtype": self.torch_dtype,
+            "trust_remote_code": True,
         }
-        
-        # 处理量化配置
-        quantization_config = self._get_quantization_config()
-        if quantization_config:
-            model_kwargs["quantization_config"] = quantization_config
-            print(f"使用 4bit 量化配置")
         
         # 处理设备映射
         if self.device_map is not None:
@@ -267,10 +230,9 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
         )
         
         # MPS 或手动设备管理
-        if self.device_map is None or (self.device and self.device.type == "mps"):
-            if not self.use_4bit_quantization:
-                print(f"手动移动模型到设备: {self.device}")
-                self.model = self.model.to(self.device)
+        if self.device_map is None:
+            print(f"手动移动模型到设备: {self.device}")
+            self.model = self.model.to(self.device)
         
         print(f"模型 {self.model_name} 加载成功")
     
@@ -287,11 +249,8 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
     def _print_error_hints(self):
         """打印错误提示信息"""
         print("请确保模型名称正确且可访问。")
-        if self.use_4bit_quantization:
-            print("如果使用量化，请确保已安装 bitsandbytes 库: pip install bitsandbytes")
-        if self.device and self.device.type == "mps":
+        if self.device and self.device == "mps":
             print("MPS 设备注意事项:")
-            print("- 不支持 4bit 量化")
             print("- 不支持 device_map")
             print("- 确保 PyTorch 版本支持 MPS")
     
@@ -352,12 +311,10 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
         """获取模型信息"""
         model_info = {
             "model_name": self.model_name,
-            "use_4bit_quantization": self.use_4bit_quantization,
             "device": str(self.device),
             "device_type": self.device.type,
             "device_map": self.device_map,
             "model_type": "transformers",
-            "torch_dtype": str(self.torch_dtype),
             "mps_available": torch.backends.mps.is_available() if hasattr(torch.backends, 'mps') else False,
             "cuda_available": torch.cuda.is_available(),
         }

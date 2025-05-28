@@ -10,20 +10,14 @@ class GemmaTransformersChatCompletion(TransformersBaseChatCompletion):
     def __init__(
         self,
         model_name: str = "google/gemma-3-4b-it",
-        use_4bit_quantization: bool = False,
         device_map: Optional[str] = None,
         device: Optional[str] = None,
-        trust_remote_code: bool = True,
-        torch_dtype: Optional[torch.dtype] = None
     ):
         # Gemma 使用 float16 作为默认数据类型
         super().__init__(
             model_name=model_name,
-            use_4bit_quantization=use_4bit_quantization,
             device_map=device_map,
             device=device,
-            trust_remote_code=trust_remote_code,
-            torch_dtype=torch_dtype if torch_dtype is not None else torch.float16
         )
     
     def _print_error_hints(self):
@@ -38,7 +32,6 @@ class GemmaTransformersChatCompletion(TransformersBaseChatCompletion):
 # 为了保持向后兼容性，也可以提供一个简化的工厂函数
 def create_gemma_transformers_client(
     model_name: str = "google/gemma-3-4b-it",
-    use_4bit_quantization: bool = False,
     device: Optional[str] = None,
     **kwargs
 ) -> GemmaTransformersChatCompletion:
@@ -47,7 +40,6 @@ def create_gemma_transformers_client(
     
     Args:
         model_name: 模型名称
-        use_4bit_quantization: 是否使用4bit量化
         device: 指定设备 ("cpu", "cuda", "mps", 等)
         **kwargs: 其他传递给构造函数的参数
     
@@ -56,7 +48,6 @@ def create_gemma_transformers_client(
     """
     return GemmaTransformersChatCompletion(
         model_name=model_name,
-        use_4bit_quantization=use_4bit_quantization,
         device=device,
         **kwargs
     )
