@@ -478,11 +478,18 @@ with gr.Blocks(title="Podcast Transcriber v2", css="""
 
     with gr.Row():
         rss_url_input = gr.Textbox(
-            label="Podcast RSS URL", 
+            label="Podcast RSS URL (Find RSS URL on https://castos.com/tools/find-podcast-rss-feed/)", 
             placeholder="e.g., https://your-podcast-feed.com/rss.xml",
             elem_id="rss-url-input"
         )
         parse_button = gr.Button("🔗 Parse RSS", elem_id="parse-rss-button")
+
+    # 添加示例 RSS URL
+    gr.Examples(
+        examples=[["https://feeds.buzzsprout.com/2460059.rss"]],
+        inputs=[rss_url_input],
+        label="Example RSS URLs"
+    )
 
     status_message_area = gr.Markdown(
         "", 
