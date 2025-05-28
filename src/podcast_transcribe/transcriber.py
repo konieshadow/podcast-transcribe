@@ -29,8 +29,8 @@ class CombinedTranscriber:
         asr_provider: str,
         diarization_provider: str,
         diarization_model_name: str,
-        llm_model_name: Optional[str] = None,
-        llm_provider: Optional[str] = None,
+        llm_model_name: str,
+        llm_provider: str,
         device: Optional[str] = None,
         segmentation_batch_size: int = 64,
         parallel: bool = False,
@@ -43,6 +43,8 @@ class CombinedTranscriber:
             asr_provider: ASR提供者名称
             diarization_provider: 说话人分离提供者名称
             diarization_model_name: 说话人分离模型名称
+            llm_model_name: LLM模型名称
+            llm_provider: LLM提供者名称
             device: 推理设备，'cpu'或'cuda'
             segmentation_batch_size: 分割批处理大小，默认为64
             parallel: 是否并行执行ASR和说话人分离，默认为False
@@ -51,23 +53,10 @@ class CombinedTranscriber:
             import torch
             if torch.backends.mps.is_available():
                 device = "mps"
-                if not llm_model_name:
-                    llm_model_name = "mlx-community/gemma-3-12b-it-4bit-DWQ"
-                if not llm_provider:
-                    llm_provider = "gemma-mlx"
-
             elif torch.cuda.is_available():
                 device = "cuda"
-                if not llm_model_name:
-                    llm_model_name = "google/gemma-3-4b-it"
-                if not llm_provider:
-                    llm_provider = "gemma-transformers"
             else:
                 device = "cpu"
-                if not llm_model_name:
-                    llm_model_name = "google/gemma-3-4b-it"
-                if not llm_provider:
-                    llm_provider = "gemma-transformers"
 
         self.asr_model_name = asr_model_name
         self.asr_provider = asr_provider
@@ -79,7 +68,8 @@ class CombinedTranscriber:
 
         self.speaker_identifier = SpeakerIdentifier(
             llm_model_name=llm_model_name,
-            llm_provider=llm_provider
+            llm_provider=llm_provider,
+            device=device
         )
         
         logger.info(f"初始化组合转录器，ASR提供者: {asr_provider}，ASR模型: {asr_model_name}，分离提供者: {diarization_provider}，分离模型: {diarization_model_name}，分割批处理大小: {segmentation_batch_size}，并行执行: {parallel}，推理设备: {device}")
@@ -513,6 +503,8 @@ def transcribe_audio(
         asr_provider=asr_provider,
         diarization_model_name=diarization_model_name,
         diarization_provider=diarization_provider,
+        llm_model_name="",
+        llm_provider="",
         device=device,
         segmentation_batch_size=segmentation_batch_size,
         parallel=parallel
@@ -529,8 +521,8 @@ def transcribe_podcast_audio(
     asr_provider: str = "distil_whisper_transformers",
     diarization_model_name: str = "pyannote/speaker-diarization-3.1",
     diarization_provider: str = "pyannote_transformers",
-    llm_model_name: Optional[str] = None,
-    llm_provider: Optional[str] = None,
+    llm_model_name: str = "google/gemma-3-4b-it",
+    llm_provider: str = "gemma-transformers",
     device: Optional[str] = None,
     segmentation_batch_size: int = 64,
     parallel: bool = False,
@@ -546,8 +538,8 @@ def transcribe_podcast_audio(
         asr_provider: ASR提供者名称
         diarization_provider: 说话人分离提供者名称
         diarization_model_name: 说话人分离模型名称
-        llm_model_name: LLM模型名称，如果为None则无法识别说话人名称
-        llm_provider: LLM提供者名称，如果为None则无法识别说话人名称
+        llm_model_name: LLM模型名称
+        llm_provider: LLM提供者名称
         device: 推理设备，'cpu'或'cuda'
         segmentation_batch_size: 分割批处理大小，默认为64
         parallel: 是否并行执行ASR和说话人分离，默认为False

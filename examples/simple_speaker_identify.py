@@ -13,6 +13,7 @@ from src.podcast_transcribe.summary.speaker_identify import SpeakerIdentifier
 if __name__ == '__main__':
     transcribe_result_dump_file = Path.joinpath(Path(__file__).parent, "output", "lex_ai_john_carmack_1.transcription.json")
     podcast_rss_xml_file = Path.joinpath(Path(__file__).parent, "input", "lexfridman.com.rss.xml")
+    device = "mps"
 
     # Load the transcription result
     if not os.path.exists(transcribe_result_dump_file):
@@ -57,8 +58,9 @@ if __name__ == '__main__':
     
 
     speaker_identifier = SpeakerIdentifier(
-        llm_model_name="mlx-community/gemma-3-12b-it-4bit-DWQ",
-        llm_provider="gemma-mlx"
+        llm_model_name="google/gemma-3-4b-it",
+        llm_provider="gemma-transformers",
+        device=device
     )
 
     # 3. Call the function

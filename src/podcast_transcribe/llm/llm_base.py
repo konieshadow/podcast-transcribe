@@ -146,19 +146,12 @@ class BaseChatCompletion(ABC):
         temperature: float = 0.7,
         max_tokens: int = 2048,
         top_p: float = 1.0,
-        model: Optional[str] = None,
         **kwargs,
     ):
         """
         创建聊天完成响应。
         模仿OpenAI的ChatCompletion.create方法。
         """
-        if model and model != self.model_name:
-            # 这是一个简化的处理。在实际场景中，您可能希望加载新模型。
-            # 目前，我们将只打印一个警告并使用初始化的模型。
-            print(f"警告: 'model' 参数 ({model}) 与初始化的模型 ({self.model_name}) 不同。"
-                  f"正在使用初始化的模型。要使用不同的模型，请重新初始化该类。")
-
         # 为Gemma格式化消息
         prompt_str = self._format_messages_for_gemma(messages)
 

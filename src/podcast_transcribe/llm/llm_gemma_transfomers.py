@@ -13,7 +13,8 @@ class GemmaTransformersChatCompletion(TransformersBaseChatCompletion):
         use_4bit_quantization: bool = False,
         device_map: Optional[str] = None,
         device: Optional[str] = None,
-        trust_remote_code: bool = True
+        trust_remote_code: bool = True,
+        torch_dtype: Optional[torch.dtype] = None
     ):
         # Gemma 使用 float16 作为默认数据类型
         super().__init__(
@@ -22,7 +23,7 @@ class GemmaTransformersChatCompletion(TransformersBaseChatCompletion):
             device_map=device_map,
             device=device,
             trust_remote_code=trust_remote_code,
-            torch_dtype=torch.float16
+            torch_dtype=torch_dtype if torch_dtype is not None else torch.float16
         )
     
     def _print_error_hints(self):

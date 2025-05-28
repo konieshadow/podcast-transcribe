@@ -1,3 +1,4 @@
+import logging
 from typing import List, Dict, Optional
 import json
 import re
@@ -5,22 +6,26 @@ import re
 from ..schemas import EnhancedSegment, PodcastChannel, PodcastEpisode
 from ..llm import llm_router
 
+# 配置日志
+logger = logging.getLogger("speaker_identify")
 
 class SpeakerIdentifier:
     """
     说话人识别器类，用于根据转录分段和播客元数据识别说话人的真实姓名或昵称
     """
     
-    def __init__(self, llm_model_name: str, llm_provider: str):
+    def __init__(self, llm_model_name: str, llm_provider: str, device: Optional[str] = None):
         """
         初始化说话人识别器
         
         参数:
             llm_model_name: LLM模型名称，如果为None则使用默认模型
             llm_provider: LLM提供者，默认为"gemma-mlx"
+            device: 计算设备，例如 "cpu", "cuda", "mps"
         """
         self.llm_model_name = llm_model_name
         self.llm_provider = llm_provider
+        self.device = device
     
     def _clean_html(self, html_string: Optional[str]) -> str:
         """
@@ -280,8 +285,10 @@ Please begin your analysis and provide the JSON result.
                 provider=self.llm_provider,
                 model=self.llm_model_name,
                 temperature=0.1, 
-                max_tokens=1024
+                max_tokens=1024,
+                device=self.device
             )
+            logger.info(f"LLM调用日志，请求参数:【{messages}】, 响应: 【{response}】")
             assistant_response_content = response["choices"][0]["message"]["content"]
             
             parsed_llm_output = None

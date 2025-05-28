@@ -9,9 +9,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.podcast_transcribe.transcriber import transcribe_podcast_audio
 from src.podcast_transcribe.audio import load_audio
 from src.podcast_transcribe.rss.podcast_rss_parser import parse_rss_xml_content
-from podcast_transcribe.llm.llm_gemma_mlx import GemmaMLXChatCompletion
-from src.podcast_transcribe.schemas import EnhancedSegment, CombinedTranscriptionResult
-from src.podcast_transcribe.summary.speaker_identify import recognize_speaker_names
 
 def main():
     """主函数"""
@@ -20,9 +17,10 @@ def main():
     # audio_file = Path("/Users/konie/Desktop/voices/lex_ai_john_carmack_30.wav")
     
     # 模型配置
-    asr_model_name = "mlx-community/"  # ASR模型名称
+    asr_model_name = "distil-whisper/distil-large-v3.5"  # ASR模型名称
     diarization_model_name = "pyannote/speaker-diarization-3.1"  # 说话人分离模型名称
-    llm_model_path = "mlx-community/gemma-3-12b-it-4bit-DWQ"
+    llm_model_name = "google/gemma-3-4b-it"
+    llm_provider = "gemma-transformers"
     device = "mps"  # 设备类型
     segmentation_batch_size = 64
     parallel = True
@@ -60,13 +58,9 @@ def main():
     result = transcribe_podcast_audio(audio,
                              podcast_info=mock_podcast_info,
                              episode_info=mock_episode_info,
-                             asr_model_name=asr_model_name,
-                             diarization_model_name=diarization_model_name,
-                             llm_model_name=llm_model_path,
                              device=device,
                              segmentation_batch_size=segmentation_batch_size,
-                             parallel=parallel,
-                             llm_model_name=llm_model_path)
+                             parallel=parallel,)
     
     # 输出结果
     print("\n转录结果:")

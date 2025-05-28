@@ -4,13 +4,13 @@ LLM模型调用路由器
 """
 
 import logging
+import torch
 from typing import Dict, Any, Optional, List, Union
 
 import spaces
 from .llm_base import BaseChatCompletion
 from . import llm_gemma_mlx
 from . import llm_gemma_transfomers
-from . import llm_phi4_transfomers
 
 # 配置日志
 logger = logging.getLogger("llm")
@@ -39,19 +39,9 @@ class LLMRouter:
                 "default_model": "google/gemma-3-4b-it",
                 "supported_params": [
                     "model_name", "use_4bit_quantization", "device_map", 
-                    "device", "trust_remote_code"
+                    "device", "trust_remote_code", "torch_dtype"
                 ],
                 "description": "基于Transformers库的Gemma聊天完成实现"
-            },
-            "phi4-transformers": {
-                "module_path": "llm_phi4_transfomers",
-                "class_name": "Phi4TransformersChatCompletion",
-                "default_model": "microsoft/Phi-4-reasoning",
-                "supported_params": [
-                    "model_name", "use_4bit_quantization", "device_map", 
-                    "device", "trust_remote_code", "enable_reasoning"
-                ],
-                "description": "基于Transformers库的Phi-4推理聊天完成实现"
             }
         }
     
@@ -77,8 +67,6 @@ class LLMRouter:
                 module = llm_gemma_mlx
             elif module_path == "llm_gemma_transfomers":
                 module = llm_gemma_transfomers
-            elif module_path == "llm_phi4_transfomers":
-                module = llm_phi4_transfomers
             else:
                 raise ImportError(f"未找到模块: {module_path}")
             
@@ -219,6 +207,12 @@ class LLMRouter:
             if model is not None:
                 kwargs["model_name"] = model
             
+            # 如果设备是 mps，并且是 transformers provider，则强制使用 float32
+            current_device = kwargs.get("device")
+            if current_device == "mps":
+                if provider == "gemma-transformers":
+                    kwargs["torch_dtype"] = torch.float32
+            
             # 获取或创建LLM实例
             llm_instance = self._get_or_create_instance(provider, **kwargs)
             
@@ -242,7 +236,7 @@ class LLMRouter:
     def reasoning_completion(
         self,
         messages: List[Dict[str, str]],
-        provider: str = "phi4-transformers",
+        provider: str = "gemma-transformers",
         temperature: float = 0.3,
         max_tokens: int = 2048,
         top_p: float = 0.9,
@@ -255,7 +249,7 @@ class LLMRouter:
         
         参数:
             messages: 消息列表，每个消息包含role和content
-            provider: LLM提供者名称，默认使用phi4-transformers
+            provider: LLM提供者名称，默认使用gemma-transformers
             temperature: 温度参数（推理任务建议使用较低值）
             max_tokens: 最大生成token数
             top_p: nucleus采样参数
@@ -269,13 +263,19 @@ class LLMRouter:
         logger.info(f"使用provider '{provider}' 进行推理完成，消息数量: {len(messages)}")
         
         # 确保使用支持推理的provider
-        if provider not in ["phi4-transformers"]:
-            logger.warning(f"Provider '{provider}' 可能不支持推理功能，建议使用 'phi4-transformers'")
+        if provider not in ["gemma-transformers"]:
+            logger.warning(f"Provider '{provider}' 可能不支持推理功能，建议使用 'gemma-transformers'")
         
         try:
             # 如果提供了model参数，添加到kwargs中
             if model is not None:
                 kwargs["model_name"] = model
+            
+            # 如果设备是 mps，并且是 transformers provider，则强制使用 float32
+            current_device = kwargs.get("device")
+            if current_device == "mps":
+                if provider == "gemma-transformers":
+                    kwargs["torch_dtype"] = torch.float32
             
             # 获取或创建LLM实例
             llm_instance = self._get_or_create_instance(provider, **kwargs)
@@ -372,7 +372,7 @@ _router = LLMRouter()
 @spaces.GPU(duration=60)
 def chat_completion(
     messages: List[Dict[str, str]],
-    provider: str = "gemma-mlx",
+    provider: str = "gemma-transformers",
     temperature: float = 0.7,
     max_tokens: int = 2048,
     top_p: float = 1.0,
@@ -391,7 +391,6 @@ def chat_completion(
         provider: LLM提供者，可选值：
             - "gemma-mlx": 基于MLX库的Gemma聊天完成实现
             - "gemma-transformers": 基于Transformers库的Gemma聊天完成实现
-            - "phi4-transformers": 基于Transformers库的Phi-4推理聊天完成实现
         temperature: 温度参数，控制生成的随机性 (0.0-2.0)
         max_tokens: 最大生成token数
         top_p: nucleus采样参数 (0.0-1.0)
@@ -419,14 +418,6 @@ def chat_completion(
             model="google/gemma-3-4b-it",
             device="cuda",
             use_4bit_quantization=True
-        )
-        
-        # 使用Phi-4推理实现
-        response = chat_completion(
-            messages=[{"role": "user", "content": "解这个数学题：2x + 5 = 15"}],
-            provider="phi4-transformers",
-            model="microsoft/Phi-4-mini-reasoning",
-            device="cuda"
         )
         
         # 自定义参数
@@ -466,7 +457,7 @@ def chat_completion(
 @spaces.GPU(duration=60)
 def reasoning_completion(
     messages: List[Dict[str, str]],
-    provider: str = "phi4-transformers",
+    provider: str = "gemma-transformers",
     temperature: float = 0.3,
     max_tokens: int = 2048,
     top_p: float = 0.9,
@@ -483,7 +474,7 @@ def reasoning_completion(
     
     参数:
         messages: 消息列表，每个消息包含role和content字段
-        provider: LLM提供者，默认使用phi4-transformers
+        provider: LLM提供者，默认使用gemma-transformers
         temperature: 温度参数（推理任务建议使用较低值）
         max_tokens: 最大生成token数
         top_p: nucleus采样参数
@@ -502,14 +493,14 @@ def reasoning_completion(
         # 数学推理任务
         response = reasoning_completion(
             messages=[{"role": "user", "content": "解这个方程：3x + 7 = 22"}],
-            provider="phi4-transformers",
+            provider="gemma-transformers",
             extract_reasoning_steps=True
         )
         
         # 逻辑推理任务
         response = reasoning_completion(
             messages=[{"role": "user", "content": "如果所有的猫都是动物，而小花是一只猫，那么小花是什么？"}],
-            provider="phi4-transformers",
+            provider="gemma-transformers",
             temperature=0.2
         )
     """

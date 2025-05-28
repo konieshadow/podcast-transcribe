@@ -1,11 +1,10 @@
-
+import torch # 导入 torch
 # 添加项目根目录到Python路径
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.podcast_transcribe.llm.llm_phi4_transfomers import Phi4TransformersChatCompletion
 from src.podcast_transcribe.llm.llm_gemma_mlx import GemmaMLXChatCompletion
 from src.podcast_transcribe.llm.llm_gemma_transfomers import GemmaTransformersChatCompletion
 
@@ -14,6 +13,7 @@ if __name__ == "__main__":
     # 示例用法：
     print("正在初始化 LLM 聊天补全...")
     try:
+        # model_name = "mlx-community/gemma-3-12b-it-4bit-DWQ"
         model_name = "google/gemma-3-4b-it"
         use_4bit_quantization = False
         device = "mps"
@@ -22,10 +22,10 @@ if __name__ == "__main__":
         # 或者，如果您有更小、更快的模型，可以尝试使用，例如："mlx-community/gemma-2b-it-8bit"
         if model_name.startswith("mlx-community"):
             gemma_chat = GemmaMLXChatCompletion(model_name=model_name)
-        elif model_name.startswith("microsoft"):
-            gemma_chat = Phi4TransformersChatCompletion(model_name=model_name, use_4bit_quantization=use_4bit_quantization, device=device)
         else:
-            gemma_chat = GemmaTransformersChatCompletion(model_name=model_name, use_4bit_quantization=use_4bit_quantization, device=device)
+            # 如果设备是 mps，则使用 float32 以增加稳定性
+            dtype_to_use = torch.float32 if device == "mps" else torch.float16
+            gemma_chat = GemmaTransformersChatCompletion(model_name=model_name, use_4bit_quantization=use_4bit_quantization, device=device, torch_dtype=dtype_to_use)
 
         print("\n--- 示例 1: 简单用户查询 ---")
         messages_example1 = [
