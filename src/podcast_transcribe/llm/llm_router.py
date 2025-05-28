@@ -6,6 +6,19 @@ LLM模型调用路由器
 import logging
 import torch
 from typing import Dict, Any, Optional, List, Union
+import os
+
+# 禁用 PyTorch 编译以避免在 Gradio Spaces 中的兼容性问题
+os.environ["PYTORCH_DISABLE_DYNAMO"] = "1"
+os.environ["TORCH_COMPILE_DISABLE"] = "1"
+
+# 如果 torch._dynamo 可用，禁用它
+try:
+    import torch._dynamo
+    torch._dynamo.config.disable = True
+    torch._dynamo.config.suppress_errors = True
+except ImportError:
+    pass
 
 import spaces
 from .llm_base import BaseChatCompletion

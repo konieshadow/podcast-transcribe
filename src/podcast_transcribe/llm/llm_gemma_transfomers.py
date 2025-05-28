@@ -1,6 +1,20 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from typing import List, Dict, Optional, Union, Literal
+import os
+
+# 禁用 PyTorch 编译以避免在 Gradio Spaces 中的兼容性问题
+os.environ["PYTORCH_DISABLE_DYNAMO"] = "1"
+os.environ["TORCH_COMPILE_DISABLE"] = "1"
+
+# 如果 torch._dynamo 可用，禁用它
+try:
+    import torch._dynamo
+    torch._dynamo.config.disable = True
+    torch._dynamo.config.suppress_errors = True
+except ImportError:
+    pass
+
 from .llm_base import TransformersBaseChatCompletion
 
 

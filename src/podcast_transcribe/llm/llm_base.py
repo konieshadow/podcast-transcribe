@@ -1,9 +1,29 @@
+"""
+LLM基础类定义
+提供聊天完成功能的抽象基类和Transformers实现
+"""
+
+import logging
 import time
 import uuid
 import torch
 from typing import List, Dict, Optional, Union, Literal
 from abc import ABC, abstractmethod
+import os
 
+# 禁用 PyTorch 编译以避免在 Gradio Spaces 中的兼容性问题
+os.environ["PYTORCH_DISABLE_DYNAMO"] = "1"
+
+# 如果 torch._dynamo 可用，禁用它
+try:
+    import torch._dynamo
+    torch._dynamo.config.disable = True
+    torch._dynamo.config.suppress_errors = True
+except ImportError:
+    pass
+
+# 配置日志
+logger = logging.getLogger("llm")
 
 class BaseChatCompletion(ABC):
     """Gemma 聊天完成的基类，包含公共功能"""
@@ -308,6 +328,16 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
         except ImportError:
             raise ImportError("请先安装 transformers 库: pip install transformers")
         
+        # 确保编译功能被禁用
+        os.environ["PYTORCH_DISABLE_DYNAMO"] = "1"
+        os.environ["TORCH_COMPILE_DISABLE"] = "1"
+        try:
+            import torch._dynamo
+            torch._dynamo.config.disable = True
+            torch._dynamo.config.suppress_errors = True
+        except (ImportError, AttributeError):
+            pass
+        
         print(f"正在加载模型: {self.model_name}")
         print(f"目标设备: {self.device}")
         print(f"设备映射: {self.device_map}")
@@ -371,6 +401,13 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
         **kwargs
     ) -> str:
         """使用 transformers 生成响应"""
+        
+        # 额外的编译禁用措施，确保在 Gradio Spaces 中正常工作
+        try:
+            import torch._dynamo
+            torch._dynamo.config.disable = True
+        except (ImportError, AttributeError):
+            pass
         
         # 对提示进行编码
         inputs = self.tokenizer.encode(prompt_str, return_tensors="pt")
@@ -488,6 +525,29 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
             print(f"生成完成，输出长度: {len(generated_tokens)} tokens")
             return generated_text
             
+        except torch._dynamo.exc.BackendCompilerFailed as e:
+            print(f"PyTorch 编译器错误，尝试禁用编译后重试: {e}")
+            # 强制禁用编译并重试
+            try:
+                torch._dynamo.reset()
+                torch._dynamo.config.disable = True
+                os.environ["PYTORCH_DISABLE_DYNAMO"] = "1"
+                
+                with torch.no_grad():
+                    outputs = self.model.generate(
+                        inputs,
+                        **generation_config
+                    )
+                
+                generated_tokens = outputs[0][len(inputs[0]):]
+                generated_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
+                
+                print(f"禁用编译后生成完成，输出长度: {len(generated_tokens)} tokens")
+                return generated_text
+                
+            except Exception as retry_e:
+                print(f"禁用编译后仍然失败: {retry_e}")
+                raise e
         except RuntimeError as e:
             if "CUDA error" in str(e):
                 print(f"CUDA 错误，尝试使用 CPU 进行推理: {e}")
@@ -517,10 +577,42 @@ class TransformersBaseChatCompletion(BaseChatCompletion):
             else:
                 raise e
         except Exception as e:
-            print(f"生成响应时出错: {e}")
-            import traceback
-            traceback.print_exc()
-            raise
+            # 处理其他编译器相关错误
+            if "BackendCompilerFailed" in str(e) or "dynamo" in str(e).lower() or "inductor" in str(e).lower():
+                print(f"检测到编译器相关错误，尝试完全禁用编译: {e}")
+                try:
+                    # 强制禁用所有编译功能
+                    os.environ["PYTORCH_DISABLE_DYNAMO"] = "1"
+                    os.environ["TORCH_COMPILE_DISABLE"] = "1"
+                    
+                    # 如果可能，重置编译状态
+                    try:
+                        torch._dynamo.reset()
+                        torch._dynamo.config.disable = True
+                        torch._dynamo.config.suppress_errors = True
+                    except:
+                        pass
+                    
+                    with torch.no_grad():
+                        outputs = self.model.generate(
+                            inputs,
+                            **generation_config
+                        )
+                    
+                    generated_tokens = outputs[0][len(inputs[0]):]
+                    generated_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
+                    
+                    print(f"完全禁用编译后生成完成，输出长度: {len(generated_tokens)} tokens")
+                    return generated_text
+                    
+                except Exception as final_e:
+                    print(f"所有重试都失败: {final_e}")
+                    raise e
+            else:
+                print(f"生成响应时出错: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
     
     def get_model_info(self) -> Dict[str, Union[str, bool, int]]:
         """获取模型信息"""
