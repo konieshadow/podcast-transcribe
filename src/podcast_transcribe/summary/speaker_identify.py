@@ -167,67 +167,38 @@ class SpeakerIdentifier:
         if len(cleaned_episode_shownotes) > max_shownotes_length:
             episode_shownotes_for_prompt += "..."
 
-        system_prompt = """You are an experienced podcast content analyst. Your task is to accurately identify the real names, nicknames, or roles of different speakers (tagged in SPEAKER_XX format) in a podcast episode, based on the provided metadata, episode information, dialogue snippets, and speech patterns. Your analysis should NOT rely on the order of speakers or speaker IDs. Your output MUST be a single, valid JSON object and nothing else, without any markdown formatting or other explanatory text."""
+        system_prompt = """You are a speaker identification expert. Return only a JSON object mapping speaker IDs to names. Start directly with { and end with }. No markdown, no explanations."""
 
-        user_prompt_template = f"""
-Contextual Information:
+        # 进一步简化，只保留最关键的信息
+        key_info = []
+        for speaker_id in unique_speaker_ids:
+            samples = dialogue_samples.get(speaker_id, [])
+            stats = speaker_stats.get(speaker_id, {"total_segments": 0, "intro_likely": False})
+            
+            # 构建简短描述
+            desc_parts = []
+            if stats["intro_likely"]:
+                desc_parts.append("intro")
+            if stats["total_segments"] > 0:
+                desc_parts.append(f"{stats['total_segments']}segs")
+            if samples:
+                # 只取第一个样本的前50个字符
+                sample_text = samples[0][:50].replace('\n', ' ').strip()
+                if sample_text:
+                    desc_parts.append(f'"{sample_text}"')
+            
+            key_info.append(f"{speaker_id}: {', '.join(desc_parts)}")
 
-1.  **Podcast Information**:
-    *   Podcast Title: {podcast_title}
-    *   Podcast Author/Producer: {podcast_author} (This information often points to the main host or production team)
-    *   Podcast Description: {podcast_desc_for_prompt}
+        user_prompt_template = f"""Podcast: {podcast_title}
+Host: {podcast_author}
+Episode: {episode_title}
 
-2.  **Current Episode Information**:
-    *   Episode Title: {episode_title}
-    *   Episode Summary: {episode_summary_for_prompt}
-    *   Detailed Episode Notes (Shownotes):
-        ```text
-        {episode_shownotes_for_prompt}
-        ```
-        (Pay close attention to any host names, guest names, positions, or social media handles mentioned in the Shownotes.)
+Notes: {episode_shownotes_for_prompt[:300]}
 
-3.  **Speakers to Identify and Their Information**:
-    ```json
-    {json.dumps(speaker_info_for_prompt, ensure_ascii=False, indent=2)}
-    ```
-    (Analyze dialogue samples and speech statistics to understand speaker roles and identities. DO NOT use speaker IDs to determine roles - SPEAKER_00 is not necessarily the host.)
+Speakers:
+{chr(10).join(key_info)}
 
-Task:
-Based on all the information above, assign the most accurate name or role to each "speaker_id".
-
-Analysis Guidance:
-* A host typically has more frequent, shorter segments, often introduces the show or guests, and may mention the podcast name
-* In panel discussion formats, there might be multiple hosts or co-hosts of similar speaking patterns
-* In interview formats, the host typically asks questions while guests give longer answers
-* Speakers who make introductory statements or welcome listeners are likely hosts
-* Use dialogue content (not just speaking patterns) to identify names and roles
-
-Output Requirements and Guidelines:
-*   **Your response MUST be ONLY a valid JSON object.** Do NOT include any other text, explanations, code, or markdown formatting (like ```json ... ```). The JSON object is the ONLY content your response should contain.
-*   The keys of the JSON object MUST be the EXACT "speaker_id"s provided in the input's "Speakers to Identify and Their Information" section (e.g., "SPEAKER_00", "SPEAKER_01").
-*   The values in the JSON object should be the identified person's name or role (string type).
-*   **Prioritize Specific Names/Nicknames**: If there is sufficient information (e.g., guests explicitly listed in Shownotes, or names mentioned in dialogue), please use the identified specific names, such as "John Doe", "AI Assistant", "Dr. Evelyn Reed". Do NOT append roles like "(Host)" or "(Guest)" if a specific name is found.
-*   **Host Identification**:
-    *   Hosts may be identified by analyzing speech patterns - they often speak more frequently in shorter segments
-    *   Look for introduction patterns in dialogue where speakers welcome listeners or introduce the show
-    *   The podcast author (if provided and credible) is often a host but verify through dialogue
-    *   There may be multiple hosts (co-hosts) in panel-style podcasts
-    *   If a host's name is identified, use the identified name directly (e.g., "Lex Fridman"). Do not append "(Host)".
-    *   If the host's name cannot be determined but the role is clearly a host, use "Podcast Host".
-*   **Guest Identification**:
-    *   Guests often give longer responses and speak less frequently than hosts
-    *   For other non-host speakers, if a specific name is identified, use the identified name directly (e.g., "John Carmack"). Do not append "(Guest)".
-    *   If specific names cannot be identified for guests, label them sequentially as "Guest 1", "Guest 2", etc.
-*   **Handling Multiple Hosts/Guests**: If there are multiple hosts or guests and they can be distinguished by name, use their names. If you cannot distinguish specific identities but know there are multiple hosts, use "Host 1", "Host 2", etc. Similarly for guests without specific names, use "Guest 1", "Guest 2".
-*   **Ensure Completeness**: The returned JSON object must include ALL "speaker_id"s listed in the input's "Speakers to Identify and Their Information" section as keys. Each "speaker_id" from the input MUST be a key in your output JSON.
-
-Ensure the output is a valid JSON object. For example:
-{{
-  "SPEAKER_00": "Jane Smith",
-  "SPEAKER_01": "Podcast Host",
-  "SPEAKER_02": "Alex Green"
-}}
-"""
+Return JSON like: {{"SPEAKER_00": "Name1", "SPEAKER_01": "Name2"}}"""
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -281,39 +252,63 @@ Ensure the output is a valid JSON object. For example:
                 messages=messages, 
                 provider=self.llm_provider,
                 model=self.llm_model_name,
-                temperature=0.1, 
-                max_tokens=1024,
-                device=self.device
+                temperature=0.2,   # 稍微提高温度
+                max_tokens=300,    # 进一步增加token数
+                top_p=0.5,         # 适度提高top_p
+                device=self.device,
+                repetition_penalty=1.0,  # 保持不使用重复惩罚
+                do_sample=True     # 允许少量采样，不使用stop tokens
             )
             logger.info(f"LLM调用日志，请求参数:【{messages}】, 响应: 【{response}】")
             assistant_response_content = response["choices"][0]["message"]["content"]
             
+            # 更严格的JSON提取逻辑
             parsed_llm_output = None
-            # 尝试从Markdown代码块中提取JSON
-            json_match = re.search(r'```json\s*(\{.*?\})\s*```', assistant_response_content, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(1)
-            else:
-                # 如果没有markdown块，尝试找到第一个 '{' 到最后一个 '}'
-                first_brace = assistant_response_content.find('{')
-                last_brace = assistant_response_content.rfind('}')
-                if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-                    json_str = assistant_response_content[first_brace : last_brace+1]
-                else: # 如果还是找不到，就认为整个回复都是JSON（可能需要更复杂的清理）
-                    json_str = assistant_response_content.strip()
             
+            # 首先尝试直接解析整个响应（如果它就是JSON）
             try:
-                # 替换换行符
-                json_str = json_str.replace("\n", "")
-
-                parsed_llm_output = json.loads(json_str)
-                if not isinstance(parsed_llm_output, dict): # 确保解析出来是字典
-                    print(f"LLM返回的JSON不是一个字典: {parsed_llm_output}")
-                    parsed_llm_output = None # 重置，以便使用默认值
-            except json.JSONDecodeError as e:
-                print(f"LLM返回的JSON解析失败: {e}")
-                print(f"用于解析的字符串: '{json_str}'")
-                # parsed_llm_output 保持为 None，将使用默认值
+                parsed_llm_output = json.loads(assistant_response_content.strip())
+                if isinstance(parsed_llm_output, dict):
+                    print("直接解析响应为JSON成功")
+                else:
+                    parsed_llm_output = None
+            except json.JSONDecodeError:
+                pass
+            
+            # 如果直接解析失败，尝试提取JSON部分
+            if parsed_llm_output is None:
+                # 尝试从Markdown代码块中提取JSON
+                json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', assistant_response_content, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(1)
+                    print("从markdown代码块中提取JSON")
+                else:
+                    # 如果没有markdown块，尝试找到第一个 '{' 到最后一个 '}'
+                    first_brace = assistant_response_content.find('{')
+                    last_brace = assistant_response_content.rfind('}')
+                    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+                        json_str = assistant_response_content[first_brace : last_brace+1]
+                        print("通过大括号位置提取JSON")
+                    else:
+                        print("无法找到有效的JSON结构，使用默认映射")
+                        return final_map
+                
+                try:
+                    # 清理JSON字符串
+                    json_str = json_str.strip()
+                    # 移除可能的换行符和多余空格
+                    json_str = re.sub(r'\s+', ' ', json_str)
+                    
+                    parsed_llm_output = json.loads(json_str)
+                    if not isinstance(parsed_llm_output, dict):
+                        print(f"LLM返回的JSON不是一个字典: {parsed_llm_output}")
+                        parsed_llm_output = None
+                    else:
+                        print("JSON解析成功")
+                except json.JSONDecodeError as e:
+                    print(f"LLM返回的JSON解析失败: {e}")
+                    print(f"用于解析的字符串: '{json_str[:200]}...'")
+                    parsed_llm_output = None
 
             if parsed_llm_output:
                 # 直接使用LLM的有效输出，不再依赖预设的角色分配逻辑
@@ -346,6 +341,8 @@ Ensure the output is a valid JSON object. For example:
                     
                     if most_active_unknown:
                         final_map[most_active_unknown] = "Podcast Host"
+                        
+                print(f"LLM识别结果: {final_map}")
             
             return final_map
 
