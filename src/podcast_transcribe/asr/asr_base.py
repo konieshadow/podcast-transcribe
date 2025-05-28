@@ -46,6 +46,54 @@ class BaseTranscriber:
         """
         raise NotImplementedError("子类必须实现_load_model方法")
     
+    def transcribe(self, audio: AudioSegment) -> TranscriptionResult:
+        """
+        转录音频，针对distil-whisper模型取消分块处理，直接处理整个音频。
+
+        参数:
+            audio: 要转录的AudioSegment对象
+
+        返回:
+            TranscriptionResult对象，包含转录结果
+        """
+        logger.info(f"开始转录 {len(audio)/1000:.2f} 秒的音频") # 移除了模型名称，因为基类不知道具体模型
+
+        # 直接处理整个音频，不进行分块
+        processed_audio = self._prepare_audio(audio)
+        samples = np.array(processed_audio.get_array_of_samples(), dtype=np.float32) / 32768.0
+
+        try:
+            model_result = self._perform_transcription(samples)
+            text = self._get_text_from_result(model_result)
+            segments = self._convert_segments(model_result)
+            language = self._detect_language(text)
+
+            logger.info(f"转录完成，语言: {language}，文本长度: {len(text)}，分段数: {len(segments)}")
+            return TranscriptionResult(text=text, segments=segments, language=language)
+        except Exception as e:
+            logger.error(f"转录失败: {str(e)}", exc_info=True)
+            raise RuntimeError(f"转录失败: {str(e)}")
+
+    def _get_text_from_result(self, result):
+        """
+        从结果中获取文本
+
+        参数:
+            result: 模型的转录结果
+
+        返回:
+            转录的文本
+        """
+        return result.get("text", "")
+
+    def _perform_transcription(self, audio_data):
+        """执行转录的抽象方法，由子类实现"""
+        raise NotImplementedError("子类必须实现_perform_transcription方法")
+
+    def _convert_segments(self, result) -> List[Dict[str, Union[float, str]]]:
+        """将模型结果转换为分段的抽象方法，由子类实现"""
+        raise NotImplementedError("子类必须实现_convert_segments方法")
+    
     def _prepare_audio(self, audio: AudioSegment) -> AudioSegment:
         """
         准备音频数据

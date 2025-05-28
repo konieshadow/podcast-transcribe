@@ -4,11 +4,10 @@ ASR模型调用路由器
 """
 
 import logging
-from typing import Dict, Any, Literal, Optional, Callable
+from typing import Dict, Any, Optional, Callable
 from pydub import AudioSegment
 import spaces
 from .asr_base import TranscriptionResult
-from . import asr_distil_whisper
 
 # 配置日志
 logger = logging.getLogger("asr")
@@ -25,8 +24,8 @@ class ASRRouter:
         # 定义支持的provider配置
         self._provider_configs = {
             "distil_whisper_transformers": {
-                "module_path": "asr_distil_whisper",
-                "function_name": "transcribe_audio", 
+                "module_path": ".asr_distil_whisper_transformers",
+                "function_name": "transcribe_audio",
                 "default_model": "distil-whisper/distil-large-v3.5",
                 "supported_params": ["model_name", "device"],
                 "description": "基于Transformers的Distil Whisper模型"
@@ -50,8 +49,9 @@ class ASRRouter:
             module_path = self._provider_configs[provider]["module_path"]
             logger.info(f"获取模块: {module_path}")
             
-            # 所有provider现在都指向同一个模块
-            module = asr_distil_whisper
+            # 使用 importlib 动态导入模块
+            import importlib
+            module = importlib.import_module(module_path, package=__package__)
             
             self._loaded_modules[provider] = module
             logger.info(f"模块 {module_path} 获取成功")
@@ -97,6 +97,10 @@ class ASRRouter:
         # 如果没有指定model_name，使用默认模型
         if "model_name" not in filtered_params and "model_name" in supported_params:
             filtered_params["model_name"] = self._provider_configs[provider]["default_model"]
+        
+        # 对于 Transformers backend，如果 device 未指定，则默认为 cpu
+        if provider == "distil_whisper_transformers" and "device" in supported_params and "device" not in filtered_params:
+            filtered_params["device"] = "cpu"
         
         return filtered_params
     
@@ -179,17 +183,17 @@ def transcribe_audio(
     provider: str = "distil_whisper_transformers",
     model_name: Optional[str] = None,
     device: str = "cpu",
-    backend: str = "transformers",
     **kwargs
 ) -> TranscriptionResult:
+    """
+    统一的音频转录接口，通过路由器选择后端
+    """
     # 准备参数
     params = kwargs.copy()
     if model_name is not None:
         params["model_name"] = model_name
-    if device != "cpu":
+    if device != "cpu": # 只有当 device 不是默认值才传递，或者根据需要传递所有支持的参数
         params["device"] = device
-    if backend is not None:
-        params["backend"] = backend
     
     return _router.transcribe(audio_segment, provider, **params)
 

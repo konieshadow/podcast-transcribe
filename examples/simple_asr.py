@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.podcast_transcribe.audio import load_audio
-from src.podcast_transcribe.asr.asr_distil_whisper import transcribe_audio
+from src.podcast_transcribe.asr.asr_router import transcribe_audio
 
 logger = logging.getLogger("asr_example")
 
@@ -43,7 +43,7 @@ def main():
         
         # 进行转录
         print("开始转录...")
-        result = transcribe_audio(audio, model_name=model, device=device)
+        result = transcribe_audio(audio, provider="distil_whisper_transformers", model_name=model, device=device)
         
         # 输出结果
         print("\n转录结果:")

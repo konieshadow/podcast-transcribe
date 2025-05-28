@@ -1,5 +1,5 @@
 """
-基于MLX或Transformers实现的语音识别模块，使用distil-whisper模型
+基于Transformers实现的语音识别模块，使用distil-whisper模型
 """
 
 import os
@@ -15,145 +15,7 @@ from .asr_base import BaseTranscriber, TranscriptionResult
 logger = logging.getLogger("asr")
 
 
-class DistilWhisperTranscriber(BaseTranscriber):
-    """抽象基类：Distil Whisper转录器的共享实现"""
-    
-    def __init__(
-        self, 
-        model_name: str,
-        **kwargs
-    ):
-        """
-        初始化转录器
-        
-        参数:
-            model_name: 模型名称
-            **kwargs: 其他参数
-        """
-        super().__init__(model_name=model_name, **kwargs)
-    
-    def transcribe(self, audio: AudioSegment) -> TranscriptionResult:
-        """
-        转录音频，针对distil-whisper模型取消分块处理，直接处理整个音频。
-        
-        参数:
-            audio: 要转录的AudioSegment对象
-            chunk_duration_s: 分块处理的块时长（秒）- 此参数被忽略
-            overlap_s: 分块间的重叠时长（秒）- 此参数被忽略
-            
-        返回:
-            TranscriptionResult对象，包含转录结果
-        """
-        logger.info(f"开始转录 {len(audio)/1000:.2f} 秒的音频（distil-whisper模型）")
-        
-        # 直接处理整个音频，不进行分块
-        processed_audio = self._prepare_audio(audio)
-        samples = np.array(processed_audio.get_array_of_samples(), dtype=np.float32) / 32768.0
-        
-        try:
-            model_result = self._perform_transcription(samples)
-            text = self._get_text_from_result(model_result)
-            segments = self._convert_segments(model_result)
-            language = self._detect_language(text)
-            
-            logger.info(f"转录完成，语言: {language}，文本长度: {len(text)}，分段数: {len(segments)}")
-            return TranscriptionResult(text=text, segments=segments, language=language)
-        except Exception as e:
-            logger.error(f"转录失败: {str(e)}", exc_info=True)
-            raise RuntimeError(f"转录失败: {str(e)}")
-    
-    def _get_text_from_result(self, result):
-        """
-        从结果中获取文本
-        
-        参数:
-            result: 模型的转录结果
-            
-        返回:
-            转录的文本
-        """
-        return result.get("text", "")
-    
-    def _load_model(self):
-        """加载模型的抽象方法，由子类实现"""
-        raise NotImplementedError("子类必须实现_load_model方法")
-    
-    def _perform_transcription(self, audio_data):
-        """执行转录的抽象方法，由子类实现"""
-        raise NotImplementedError("子类必须实现_perform_transcription方法")
-    
-    def _convert_segments(self, result) -> List[Dict[str, Union[float, str]]]:
-        """将模型结果转换为分段的抽象方法，由子类实现"""
-        raise NotImplementedError("子类必须实现_convert_segments方法")
-
-
-class MLXDistilWhisperTranscriber(DistilWhisperTranscriber):
-    """使用MLX加载和运行distil-whisper模型的转录器"""
-    
-    def __init__(
-        self, 
-        model_name: str = "mlx-community/distil-whisper-large-v3",
-    ):
-        """
-        初始化转录器
-        
-        参数:
-            model_name: 模型名称
-        """
-        super().__init__(model_name=model_name)
-        
-    def _load_model(self):
-        """加载Distil Whisper MLX模型"""
-        try:
-            # 懒加载mlx-whisper
-            try:
-                import mlx_whisper
-            except ImportError:
-                raise ImportError("请先安装mlx-whisper库: pip install mlx-whisper")
-                
-            logger.info(f"开始加载模型 {self.model_name}")
-            self.model = mlx_whisper.load_models.load_model(self.model_name)
-            logger.info(f"模型加载成功")
-        except Exception as e:
-            logger.error(f"加载模型失败: {str(e)}", exc_info=True)
-            raise RuntimeError(f"加载模型失败: {str(e)}")
-    
-    def _convert_segments(self, result) -> List[Dict[str, Union[float, str]]]:
-        """
-        将模型的分段结果转换为所需格式
-        
-        参数:
-            result: 模型返回的结果
-            
-        返回:
-            转换后的分段列表
-        """
-        segments = []
-        
-        for segment in result.get("segments", []):
-            segments.append({
-                "start": segment.get("start", 0.0),
-                "end": segment.get("end", 0.0),
-                "text": segment.get("text", "").strip()
-            })
-        
-        return segments
-    
-    def _perform_transcription(self, audio_data):
-        """
-        执行转录
-        
-        参数:
-            audio_data: 音频数据（numpy数组）
-            
-        返回:
-            模型的转录结果
-        """
-        from mlx_whisper import transcribe
-        return transcribe(audio_data, path_or_hf_repo=self.model_name)
-
-
-class TransformersDistilWhisperTranscriber(DistilWhisperTranscriber):
+class TransformersDistilWhisperTranscriber(BaseTranscriber):
     """使用Transformers加载和运行distil-whisper模型的转录器"""
     
     def __init__(
@@ -285,35 +147,27 @@ class TransformersDistilWhisperTranscriber(DistilWhisperTranscriber):
             # 如果新格式失败，回退到简单调用
             return self.pipeline(audio_data)
 
-
 # 统一的接口函数
 def transcribe_audio(
     audio_segment: AudioSegment,
     model_name: str = None,
-    backend: Literal["mlx", "transformers"] = "transformers",
     device: str = "cpu",
 ) -> TranscriptionResult:
     """
-    使用Distil Whisper模型转录音频
+    使用Distil Whisper模型转录音频 (Transformers后端)
     
     参数:
         audio_segment: 输入的AudioSegment对象
         model_name: 使用的模型名称，如果不指定则使用默认模型
-        backend: 后端类型，'mlx'或'transformers'
-        device: 推理设备，仅对transformers后端有效
+        device: 推理设备，'cpu'或'cuda'
         
     返回:
         TranscriptionResult对象，包含转录的文本、分段和语言
     """
-    logger.info(f"调用transcribe_audio函数，音频长度: {len(audio_segment)/1000:.2f}秒，后端: {backend}")
+    logger.info(f"调用 transcribe_audio 函数 (Transformers后端)，音频长度: {len(audio_segment)/1000:.2f}秒，设备: {device}")
     
-    if backend == "mlx":
-        default_model = "mlx-community/distil-whisper-large-v3"
-        model = model_name or default_model
-        transcriber = MLXDistilWhisperTranscriber(model_name=model)
-    else:  # transformers
-        default_model = "distil-whisper/distil-large-v3.5"
-        model = model_name or default_model
-        transcriber = TransformersDistilWhisperTranscriber(model_name=model, device=device)
+    default_model = "distil-whisper/distil-large-v3.5"
+    model = model_name or default_model
+    transcriber = TransformersDistilWhisperTranscriber(model_name=model, device=device)
     
     return transcriber.transcribe(audio_segment)
