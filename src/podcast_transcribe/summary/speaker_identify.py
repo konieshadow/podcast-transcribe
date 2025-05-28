@@ -167,7 +167,7 @@ class SpeakerIdentifier:
         if len(cleaned_episode_shownotes) > max_shownotes_length:
             episode_shownotes_for_prompt += "..."
 
-        system_prompt = """You are an experienced podcast content analyst. Your task is to accurately identify the real names, nicknames, or roles of different speakers (tagged in SPEAKER_XX format) in a podcast episode, based on the provided metadata, episode information, dialogue snippets, and speech patterns. Your analysis should NOT rely on the order of speakers or speaker IDs."""
+        system_prompt = """You are an experienced podcast content analyst. Your task is to accurately identify the real names, nicknames, or roles of different speakers (tagged in SPEAKER_XX format) in a podcast episode, based on the provided metadata, episode information, dialogue snippets, and speech patterns. Your analysis should NOT rely on the order of speakers or speaker IDs. Your output MUST be a single, valid JSON object and nothing else, without any markdown formatting or other explanatory text."""
 
         user_prompt_template = f"""
 Contextual Information:
@@ -203,7 +203,9 @@ Analysis Guidance:
 * Use dialogue content (not just speaking patterns) to identify names and roles
 
 Output Requirements and Guidelines:
-*   Please return the result strictly in JSON format. The keys of the JSON object should be the original "speaker_id" (e.g., "SPEAKER_00"), and the values should be the identified person's name or role (string type).
+*   **Your response MUST be ONLY a valid JSON object.** Do NOT include any other text, explanations, code, or markdown formatting (like ```json ... ```). The JSON object is the ONLY content your response should contain.
+*   The keys of the JSON object MUST be the EXACT "speaker_id"s provided in the input's "Speakers to Identify and Their Information" section (e.g., "SPEAKER_00", "SPEAKER_01").
+*   The values in the JSON object should be the identified person's name or role (string type).
 *   **Prioritize Specific Names/Nicknames**: If there is sufficient information (e.g., guests explicitly listed in Shownotes, or names mentioned in dialogue), please use the identified specific names, such as "John Doe", "AI Assistant", "Dr. Evelyn Reed". Do NOT append roles like "(Host)" or "(Guest)" if a specific name is found.
 *   **Host Identification**:
     *   Hosts may be identified by analyzing speech patterns - they often speak more frequently in shorter segments
@@ -217,19 +219,14 @@ Output Requirements and Guidelines:
     *   For other non-host speakers, if a specific name is identified, use the identified name directly (e.g., "John Carmack"). Do not append "(Guest)".
     *   If specific names cannot be identified for guests, label them sequentially as "Guest 1", "Guest 2", etc.
 *   **Handling Multiple Hosts/Guests**: If there are multiple hosts or guests and they can be distinguished by name, use their names. If you cannot distinguish specific identities but know there are multiple hosts, use "Host 1", "Host 2", etc. Similarly for guests without specific names, use "Guest 1", "Guest 2".
-*   **Ensure Completeness**: The returned JSON object must include all "speaker_id"s listed in the input as keys.
+*   **Ensure Completeness**: The returned JSON object must include ALL "speaker_id"s listed in the input's "Speakers to Identify and Their Information" section as keys. Each "speaker_id" from the input MUST be a key in your output JSON.
 
-JSON Output Example:
-```json
+Ensure the output is a valid JSON object. For example:
 {{
   "SPEAKER_00": "Jane Smith",
   "SPEAKER_01": "Podcast Host",
   "SPEAKER_02": "Alex Green"
 }}
-```
-Note that in this example, SPEAKER_01 is identified as the host, not SPEAKER_00, based on content analysis, not ID order.
-
-Please begin your analysis and provide the JSON result.
 """
 
         messages = [
@@ -306,6 +303,9 @@ Please begin your analysis and provide the JSON result.
                     json_str = assistant_response_content.strip()
             
             try:
+                # 替换换行符
+                json_str = json_str.replace("\n", "")
+
                 parsed_llm_output = json.loads(json_str)
                 if not isinstance(parsed_llm_output, dict): # 确保解析出来是字典
                     print(f"LLM返回的JSON不是一个字典: {parsed_llm_output}")
